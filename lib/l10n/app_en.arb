@@ -1,0 +1,93 @@
+{
+  "@@locale": "en",
+  "appTitle": "HomeTasks",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "login": "Login",
+  "@login": {
+    "description": "Login button text"
+  },
+  "register": "Register",
+  "@register": {
+    "description": "Register button text"
+  },
+  "email": "Email",
+  "@email": {
+    "description": "Email field label"
+  },
+  "password": "Password",
+  "@password": {
+    "description": "Password field label"
+  },
+  "name": "Name",
+  "@name": {
+    "description": "Name field label"
+  },
+  "logout": "Logout",
+  "@logout": {
+    "description": "Logout button text"
+  },
+  "welcomeBack": "Welcome back!",
+  "@welcomeBack": {
+    "description": "Welcome message on login screen"
+  },
+  "createAccount": "Create your account",
+  "@createAccount": {
+    "description": "Header on registration screen"
+  },
+  "emailRequired": "Email is required",
+  "@emailRequired": {
+    "description": "Validation message for required email"
+  },
+  "emailInvalid": "Please enter a valid email",
+  "@emailInvalid": {
+    "description": "Validation message for invalid email format"
+  },
+  "passwordRequired": "Password is required",
+  "@passwordRequired": {
+    "description": "Validation message for required password"
+  },
+  "passwordMinLength": "Password must be at least {length} characters",
+  "@passwordMinLength": {
+    "description": "Validation message for password minimum length",
+    "placeholders": {
+      "length": {
+        "type": "int",
+        "example": "6"
+      }
+    }
+  },
+  "nameRequired": "Name is required",
+  "@nameRequired": {
+    "description": "Validation message for required name"
+  },
+  "loginSuccess": "Login successful!",
+  "@loginSuccess": {
+    "description": "Success message after login"
+  },
+  "loginError": "Login failed. Please check your credentials.",
+  "@loginError": {
+    "description": "Error message on login failure"
+  },
+  "registerSuccess": "Registration successful!",
+  "@registerSuccess": {
+    "description": "Success message after registration"
+  },
+  "registerError": "Registration failed. Please try again.",
+  "@registerError": {
+    "description": "Error message on registration failure"
+  },
+  "networkError": "Network error. Please check your connection.",
+  "@networkError": {
+    "description": "Error message for network issues"
+  },
+  "serverError": "Server error. Please try again later.",
+  "@serverError": {
+    "description": "Error message for server issues"
+  },
+  "unexpectedError": "An unexpected error occurred.",
+  "@unexpectedError": {
+    "description": "Generic error message"
+  }
+}
