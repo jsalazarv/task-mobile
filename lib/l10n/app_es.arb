@@ -1,24 +1,46 @@
 {
   "@@locale": "es",
+
   "appTitle": "HomeTasks",
+  "loading": "Cargando...",
+  "retry": "Reintentar",
+  "cancel": "Cancelar",
+  "save": "Guardar",
+  "delete": "Eliminar",
+  "confirm": "Confirmar",
+  "back": "Regresar",
+  "or": "o",
+  "continueWith": "Continuar con {provider}",
+
   "login": "Iniciar sesión",
-  "register": "Registrarse",
-  "email": "Correo electrónico",
-  "password": "Contraseña",
-  "name": "Nombre",
   "logout": "Cerrar sesión",
-  "welcomeBack": "¡Bienvenido de nuevo!",
+  "register": "Registrarse",
+
+  "welcomeBack": "Bienvenido de nuevo",
+  "loginSubtitle": "Ingresa tus credenciales para acceder a tu cuenta",
+
   "createAccount": "Crea tu cuenta",
-  "emailRequired": "El correo es requerido",
-  "emailInvalid": "Por favor ingresa un correo válido",
+  "registerSubtitle": "Ingresa tu información para comenzar",
+
+  "alreadyHaveAccount": "¿Ya tienes una cuenta?",
+  "dontHaveAccount": "¿No tienes una cuenta?",
+
+  "email": "Correo electrónico",
+  "emailPlaceholder": "nombre@ejemplo.com",
+  "password": "Contraseña",
+  "passwordPlaceholder": "••••••••",
+  "name": "Nombre completo",
+  "namePlaceholder": "Juan Pérez",
+  "forgotPassword": "¿Olvidaste tu contraseña?",
+
+  "emailRequired": "El correo electrónico es requerido",
+  "emailInvalid": "Por favor ingresa un correo electrónico válido",
   "passwordRequired": "La contraseña es requerida",
   "passwordMinLength": "La contraseña debe tener al menos {length} caracteres",
-  "nameRequired": "El nombre es requerido",
-  "loginSuccess": "¡Inicio de sesión exitoso!",
-  "loginError": "Error al iniciar sesión. Verifica tus credenciales.",
-  "registerSuccess": "¡Registro exitoso!",
-  "registerError": "Error al registrarse. Por favor intenta de nuevo.",
-  "networkError": "Error de red. Por favor verifica tu conexión.",
-  "serverError": "Error del servidor. Por favor intenta más tarde.",
+  "nameRequired": "El nombre completo es requerido",
+
+  "networkError": "Sin conexión a internet. Verifica tu red.",
+  "serverError": "Algo salió mal de nuestro lado. Intenta más tarde.",
+  "unauthorizedError": "Tu sesión ha expirado. Por favor inicia sesión de nuevo.",
   "unexpectedError": "Ocurrió un error inesperado."
 }

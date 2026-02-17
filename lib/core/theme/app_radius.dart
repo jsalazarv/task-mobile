@@ -1,0 +1,15 @@
+import 'package:flutter/material.dart';
+
+abstract final class AppRadius {
+  static const double none = 0;
+  static const double sm   = 4;
+  static const double md   = 6;
+  static const double lg   = 8;
+  static const double xl   = 12;
+  static const double full = 9999;
+
+  static const card   = BorderRadius.all(Radius.circular(lg));
+  static const button = BorderRadius.all(Radius.circular(md));
+  static const input  = BorderRadius.all(Radius.circular(md));
+  static const badge  = BorderRadius.all(Radius.circular(full));
+}

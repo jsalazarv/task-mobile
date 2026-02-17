@@ -39,8 +39,8 @@ dependencies:
   dartz: ^0.10.1
   dio: ^5.4.3+1
   equatable: ^2.0.5
-  # firebase_core: ^3.6.0  # Temporarily disabled - will be added in Phase 12
-  # firebase_messaging: ^15.1.3  # Temporarily disabled - will be added in Phase 12
+  # firebase_core: ^3.6.0  # Temporarily disabled - Phase 12
+  # firebase_messaging: ^15.1.3  # Temporarily disabled - Phase 12
   flutter_bloc: ^8.1.6
   flutter_svg: ^2.0.10+1
   freezed_annotation: ^2.4.4
@@ -54,6 +54,7 @@ dependencies:
   pretty_dio_logger: ^1.3.1
   retrofit: ^4.1.0
   shared_preferences: ^2.2.3
+  sqflite: ^2.3.0
 
 dev_dependencies:
   flutter_test:
