@@ -1,59 +1,71 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hometasks/core/routes/app_routes.dart';
+import 'package:hometasks/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:hometasks/features/auth/presentation/bloc/auth_state.dart';
+import 'package:hometasks/features/auth/presentation/pages/home_page.dart';
+import 'package:hometasks/features/auth/presentation/pages/login_page.dart';
+import 'package:hometasks/features/auth/presentation/pages/register_page.dart';
 
-/// Placeholder pages — serán reemplazadas en las fases de features.
-class _LoginPage extends StatelessWidget {
-  const _LoginPage();
+/// Adaptador que convierte el stream del AuthBloc en un [Listenable]
+/// para que GoRouter se refresque ante cambios de estado.
+class AuthBlocListenable extends ChangeNotifier {
+  AuthBlocListenable(AuthBloc bloc) {
+    _subscription = bloc.stream.listen((_) => notifyListeners());
+  }
+
+  late final StreamSubscription<AuthState> _subscription;
+
   @override
-  Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: Text('Login — Phase 9')));
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
 }
 
-class _RegisterPage extends StatelessWidget {
-  const _RegisterPage();
-  @override
-  Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: Text('Register — Phase 9')));
+/// Construye el router con acceso al [AuthBloc] ya provisto en el árbol.
+GoRouter buildAppRouter(AuthBloc authBloc) {
+  final listenable = AuthBlocListenable(authBloc);
+
+  return GoRouter(
+    initialLocation: AppRoutes.login,
+    refreshListenable: listenable,
+    redirect: (context, state) => _authGuard(authBloc, state),
+    routes: [
+      GoRoute(
+        path: AppRoutes.login,
+        name: 'login',
+        builder: (_, __) => const LoginPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.register,
+        name: 'register',
+        builder: (_, __) => const RegisterPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.home,
+        name: 'home',
+        builder: (_, __) => const HomePage(),
+      ),
+    ],
+  );
 }
 
-class _HomePage extends StatelessWidget {
-  const _HomePage();
-  @override
-  Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: Text('Home — Phase 9')));
-}
+/// Guard de autenticación — única fuente de verdad para redirecciones.
+String? _authGuard(AuthBloc authBloc, GoRouterState state) {
+  final authState = authBloc.state;
+  final isOnAuth = state.matchedLocation == AppRoutes.login ||
+      state.matchedLocation == AppRoutes.register;
 
-/// Única fuente de verdad para la navegación de la app.
-///
-/// Para activar el redirect de autenticación, inyecta el estado del
-/// auth BLoC en [_authRedirect] cuando esté disponible (Phase 9).
-final appRouter = GoRouter(
-  initialLocation: AppRoutes.login,
+  if (authState is AuthInitial || authState is AuthLoading) return null;
 
-  redirect: _authRedirect,
-  routes: [
-    GoRoute(
-      path: AppRoutes.login,
-      name: 'login',
-      builder: (_, __) => const _LoginPage(),
-    ),
-    GoRoute(
-      path: AppRoutes.register,
-      name: 'register',
-      builder: (_, __) => const _RegisterPage(),
-    ),
-    GoRoute(
-      path: AppRoutes.home,
-      name: 'home',
-      builder: (_, __) => const _HomePage(),
-    ),
-  ],
-);
+  if (authState is AuthAuthenticated && isOnAuth) return AppRoutes.home;
 
-/// Guard de autenticación.
-/// Devuelve la ruta de redirección o null si se permite el acceso.
-String? _authRedirect(BuildContext context, GoRouterState state) {
-  // TODO(phase-9): leer estado real del AuthBloc e implementar lógica.
+  if (authState is AuthUnauthenticated && !isOnAuth) return AppRoutes.login;
+
   return null;
 }
+
+
