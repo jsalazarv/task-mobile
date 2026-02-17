@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hometasks/core/config/env/dev_env.dart';
 import 'package:hometasks/core/config/env/env_config.dart';
 import 'package:hometasks/core/di/injection.dart';
+import 'package:hometasks/core/storage/hive_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,6 +16,10 @@ Future<void> main() async {
   
   // Initialize dependency injection
   await configureDependencies();
+  
+  // Initialize Hive storage
+  final hiveService = getIt<HiveService>();
+  await hiveService.init();
   
   runApp(const HomeTasks());
 }
