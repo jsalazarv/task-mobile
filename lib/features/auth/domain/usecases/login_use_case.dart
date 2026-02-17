@@ -6,7 +6,9 @@ import 'package:hometasks/features/auth/domain/entities/user_entity.dart';
 import 'package:hometasks/features/auth/domain/repositories/auth_repository.dart';
 import 'package:hometasks/features/auth/domain/value_objects/email_value_object.dart';
 import 'package:hometasks/features/auth/domain/value_objects/password_value_object.dart';
+import 'package:injectable/injectable.dart';
 
+@lazySingleton
 final class LoginUseCase implements UseCase<UserEntity, LoginParams> {
   const LoginUseCase(this._repository);
 
