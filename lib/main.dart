@@ -7,12 +7,8 @@ import 'package:hometasks/core/storage/hive_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Default to dev environment if not initialized
-  try {
-    EnvConfig.instance;
-  } catch (_) {
-    EnvConfig.initialize(DevEnv());
-  }
+  // Initialize environment
+  EnvConfig.initialize(DevEnv());
   
   // Initialize dependency injection
   await configureDependencies();
@@ -59,19 +55,85 @@ class HomePage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            const Icon(
+              Icons.check_circle_outline,
+              size: 80,
+              color: Colors.green,
+            ),
+            const SizedBox(height: 24),
             const Text(
-              'Clean Architecture Boilerplate',
-              style: TextStyle(fontSize: 24),
+              '¡Aplicación funcionando!',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 16),
-            Text(
-              'Environment: ${config.environment.name}',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            const Text(
+              'Clean Architecture + BLoC',
+              style: TextStyle(fontSize: 18),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'API: ${config.apiBaseUrl}',
-              style: const TextStyle(fontSize: 14),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.symmetric(horizontal: 32),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Entorno:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        config.environment.name.toUpperCase(),
+                        style: TextStyle(
+                          color: Colors.blue.shade700,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'API:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Flexible(
+                        child: Text(
+                          config.apiBaseUrl,
+                          style: const TextStyle(fontSize: 12),
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            const Text(
+              '✓ Dependency Injection (GetIt)',
+              style: TextStyle(fontSize: 14, color: Colors.grey),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              '✓ Local Storage (Hive)',
+              style: TextStyle(fontSize: 14, color: Colors.grey),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              '✓ Network Layer (Dio)',
+              style: TextStyle(fontSize: 14, color: Colors.grey),
             ),
           ],
         ),
