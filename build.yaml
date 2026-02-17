@@ -1,0 +1,13 @@
+targets:
+  $default:
+    builders:
+      injectable_generator:injectable_builder:
+        options:
+          auto_register: true
+          # Generate for the app
+          generate_for:
+            - lib/**
+          # Ignore test files
+          exclude:
+            - test/**
+            - "**/*.mocks.dart"

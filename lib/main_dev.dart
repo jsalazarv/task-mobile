@@ -3,10 +3,10 @@ import 'package:hometasks/core/config/env/dev_env.dart';
 import 'package:hometasks/core/config/env/env_config.dart';
 import 'package:hometasks/main.dart' as app;
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   EnvConfig.initialize(DevEnv());
   
-  app.main();
+  await app.main();
 }

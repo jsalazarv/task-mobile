@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:hometasks/core/config/env/dev_env.dart';
 import 'package:hometasks/core/config/env/env_config.dart';
+import 'package:hometasks/core/di/injection.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // Default to dev environment if not initialized
@@ -11,6 +12,9 @@ void main() {
   } catch (_) {
     EnvConfig.initialize(DevEnv());
   }
+  
+  // Initialize dependency injection
+  await configureDependencies();
   
   runApp(const HomeTasks());
 }
