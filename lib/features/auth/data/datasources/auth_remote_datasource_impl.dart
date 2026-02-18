@@ -10,10 +10,18 @@ import 'package:injectable/injectable.dart';
 /// Se reemplazará con llamadas Dio reales cuando el backend esté listo.
 @LazySingleton(as: AuthRemoteDataSource)
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
-  // Usuarios en memoria para el mock
-  final _users = <String, _MockUser>{};
-
   static const _mockDelay = Duration(milliseconds: 800);
+
+  // Usuario de prueba precargado — permite login sin registro previo.
+  final _users = <String, _MockUser>{
+    'test@hometasks.com': _MockUser(
+      id: 'usr_demo',
+      name: 'Carlos García',
+      email: 'test@hometasks.com',
+      password: 'password123',
+      createdAt: DateTime(2025),
+    ),
+  };
 
   @override
   Future<AuthResponseModel> login({

@@ -145,7 +145,7 @@ class _WelcomeCard extends StatelessWidget {
                     Text(
                       user!.email,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.mutedForeground,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                     ),
                 ],
@@ -203,7 +203,7 @@ class _ComingSoonSection extends StatelessWidget {
             Icon(
               Icons.construction_outlined,
               size: 48,
-              color: AppColors.mutedForeground,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: AppSpacing.md),
             Text(
@@ -215,7 +215,7 @@ class _ComingSoonSection extends StatelessWidget {
               'Las tareas del hogar llegarán en la siguiente fase.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.mutedForeground,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
             ),
           ],
