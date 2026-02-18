@@ -4,5 +4,7 @@ abstract final class AppRoutes {
   static const register = '/register';
 
   // App
-  static const home = '/';
+  static const home     = '/';
+  static const settings = '/settings';
+  static const members  = '/members';
 }

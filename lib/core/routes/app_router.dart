@@ -5,9 +5,11 @@ import 'package:go_router/go_router.dart';
 import 'package:hometasks/core/routes/app_routes.dart';
 import 'package:hometasks/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:hometasks/features/auth/presentation/bloc/auth_state.dart';
-import 'package:hometasks/features/auth/presentation/pages/home_page.dart';
 import 'package:hometasks/features/auth/presentation/pages/login_page.dart';
 import 'package:hometasks/features/auth/presentation/pages/register_page.dart';
+import 'package:hometasks/features/home/presentation/pages/home_page.dart';
+import 'package:hometasks/features/settings/presentation/pages/members_page.dart';
+import 'package:hometasks/features/settings/presentation/pages/settings_page.dart';
 
 /// Adaptador que convierte el stream del AuthBloc en un [Listenable]
 /// para que GoRouter se refresque ante cambios de estado.
@@ -48,6 +50,16 @@ GoRouter buildAppRouter(AuthBloc authBloc) {
         path: AppRoutes.home,
         name: 'home',
         builder: (_, __) => const HomePage(),
+      ),
+      GoRoute(
+        path: AppRoutes.settings,
+        name: 'settings',
+        builder: (_, __) => const SettingsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.members,
+        name: 'members',
+        builder: (_, __) => const MembersPage(),
       ),
     ],
   );
