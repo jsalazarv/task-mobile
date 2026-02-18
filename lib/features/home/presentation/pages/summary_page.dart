@@ -278,7 +278,11 @@ class _PodiumColumn extends StatelessWidget {
 
         isFirst
             ? _AnimatedRingAvatar(member: member, size: 56)
-            : _MemberAvatar(member: member, size: 46),
+            : _MemberAvatar(
+                member: member,
+                size: 46,
+                rankGradient: podiumGradientForRank(rank),
+              ),
         const SizedBox(height: AppSpacing.sm),
 
         Text(
@@ -500,7 +504,11 @@ class _AnimatedRingAvatarState extends State<_AnimatedRingAvatar>
           child: child,
         ),
       ),
-      child: _MemberAvatar(member: widget.member, size: widget.size),
+      child: _MemberAvatar(
+        member: widget.member,
+        size: widget.size,
+        rankGradient: podiumGoldGradient,
+      ),
     );
   }
 }
@@ -508,13 +516,31 @@ class _AnimatedRingAvatarState extends State<_AnimatedRingAvatar>
 // ── Avatar compartido ─────────────────────────────────────────────────────────
 
 class _MemberAvatar extends StatelessWidget {
-  const _MemberAvatar({required this.member, required this.size});
+  const _MemberAvatar({
+    required this.member,
+    required this.size,
+    this.rankGradient,
+  });
 
   final FamilyMember member;
   final double size;
 
+  /// Cuando se pasa, el borde y la inicial usan este gradiente en lugar
+  /// del color personal del miembro.
+  final LinearGradient? rankGradient;
+
   @override
   Widget build(BuildContext context) {
+    final gradient = rankGradient;
+
+    if (gradient != null) {
+      return _GradientAvatar(
+        member: member,
+        size: size,
+        gradient: gradient,
+      );
+    }
+
     return Container(
       width: size,
       height: size,
@@ -530,6 +556,53 @@ class _MemberAvatar extends StatelessWidget {
           fontSize: size * 0.38,
           fontWeight: FontWeight.w800,
           color: member.avatarColor,
+        ),
+      ),
+    );
+  }
+}
+
+/// Avatar con borde e inicial renderizados con gradiente de podio.
+class _GradientAvatar extends StatelessWidget {
+  const _GradientAvatar({
+    required this.member,
+    required this.size,
+    required this.gradient,
+  });
+
+  final FamilyMember member;
+  final double size;
+  final LinearGradient gradient;
+
+  static const _borderWidth = 2.5;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: gradient,
+        shape: BoxShape.circle,
+      ),
+      padding: const EdgeInsets.all(_borderWidth),
+      child: Container(
+        decoration: BoxDecoration(
+          color: gradient.colors.first.withOpacity(0.22),
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: ShaderMask(
+          shaderCallback: (bounds) => gradient.createShader(bounds),
+          blendMode: BlendMode.srcIn,
+          child: Text(
+            member.initial,
+            style: TextStyle(
+              fontSize: size * 0.38,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
         ),
       ),
     );
