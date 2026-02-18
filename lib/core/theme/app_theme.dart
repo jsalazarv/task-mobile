@@ -15,22 +15,34 @@ abstract final class AppTheme {
   static ThemeData get light => _build(brightness: Brightness.light);
   static ThemeData get dark  => _build(brightness: Brightness.dark);
 
-  static ThemeData _build({required Brightness brightness}) {
+  /// Genera un tema con color primario personalizado.
+  static ThemeData withPrimary(Color primaryColor, {required Brightness brightness}) =>
+      _build(brightness: brightness, customPrimary: primaryColor);
+
+  static ThemeData _build({
+    required Brightness brightness,
+    Color? customPrimary,
+  }) {
     final isDark = brightness == Brightness.dark;
 
-    final bg         = isDark ? AppColors.backgroundDark      : AppColors.background;
-    final fg         = isDark ? AppColors.foregroundDark      : AppColors.foreground;
-    final cardColor  = isDark ? AppColors.cardDark            : AppColors.card;
-    final borderCol  = isDark ? AppColors.borderDark          : AppColors.border;
-    final mutedCol   = isDark ? AppColors.mutedDark           : AppColors.muted;
-    final mutedFg    = isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground;
-    final primary    = isDark ? AppColors.primaryDark         : AppColors.primary;
-    final primaryFg  = isDark ? AppColors.primaryForegroundDark : AppColors.primaryForeground;
+    final bg              = isDark ? AppColors.backgroundDark       : AppColors.background;
+    final fg              = isDark ? AppColors.foregroundDark        : AppColors.foreground;
+    final cardColor       = isDark ? AppColors.cardDark              : AppColors.card;
+    final borderCol       = isDark ? AppColors.borderDark            : AppColors.border;
+    final mutedCol        = isDark ? AppColors.mutedDark             : AppColors.muted;
+    final mutedFg         = isDark ? AppColors.mutedForegroundDark   : AppColors.mutedForeground;
+    // En dark usamos el fondo como scaffoldBg (mismo que bg), sin el warm off-white claro.
+    final primary         = customPrimary ?? (isDark ? AppColors.primaryDark : AppColors.primary);
+    final primaryFg       = _contrastColor(primary);
+    final primaryContainer = isDark ? AppColors.primaryContainerDark : AppColors.primaryContainer;
+    final onPrimaryContainer = isDark ? AppColors.indigo200          : AppColors.indigo700;
 
     final colorScheme = ColorScheme(
       brightness: brightness,
       primary: primary,
       onPrimary: primaryFg,
+      primaryContainer: primaryContainer,
+      onPrimaryContainer: onPrimaryContainer,
       secondary: isDark ? AppColors.secondaryDark : AppColors.secondary,
       onSecondary: isDark ? AppColors.secondaryForegroundDark : AppColors.secondaryForeground,
       error: AppColors.destructive,
@@ -184,5 +196,11 @@ abstract final class AppTheme {
         displayColor: fg,
       ),
     );
+  }
+
+  /// Devuelve blanco o negro según la luminancia del color base.
+  static Color _contrastColor(Color bg) {
+    final luminance = bg.computeLuminance();
+    return luminance > 0.35 ? AppColors.foreground : AppColors.white;
   }
 }
