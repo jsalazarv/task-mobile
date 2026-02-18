@@ -538,6 +538,7 @@ class _MemberAvatar extends StatelessWidget {
         member: member,
         size: size,
         gradient: gradient,
+        initialColor: _initialColorForGradient(gradient),
       );
     }
 
@@ -562,17 +563,32 @@ class _MemberAvatar extends StatelessWidget {
   }
 }
 
+/// Elige el color de la inicial según la luminosidad del gradiente de podio.
+///
+/// - Oro y plata tienen fondos claros → inicial oscura.
+/// - Bronce tiene fondo oscuro → inicial clara.
+Color _initialColorForGradient(LinearGradient gradient) {
+  if (gradient == podiumGoldGradient)   return AppColors.xpGoldDark;        // #78350F
+  if (gradient == podiumSilverGradient) return const Color(0xFF1E293B);     // slate-800
+  return AppColors.streakOrangeLight;                                        // #FFF7ED (bronce)
+}
+
 /// Avatar con borde e inicial renderizados con gradiente de podio.
 class _GradientAvatar extends StatelessWidget {
   const _GradientAvatar({
     required this.member,
     required this.size,
     required this.gradient,
+    required this.initialColor,
   });
 
   final FamilyMember member;
   final double size;
   final LinearGradient gradient;
+
+  /// Color sólido de contraste para la inicial, elegido por el llamador
+  /// según la luminosidad del gradiente (oscuro para oro/plata, claro para bronce).
+  final Color initialColor;
 
   static const _borderWidth = 2.5;
 
@@ -588,20 +604,16 @@ class _GradientAvatar extends StatelessWidget {
       padding: const EdgeInsets.all(_borderWidth),
       child: Container(
         decoration: BoxDecoration(
-          color: gradient.colors.first.withOpacity(0.22),
+          color: gradient.colors.first.withOpacity(0.25),
           shape: BoxShape.circle,
         ),
         alignment: Alignment.center,
-        child: ShaderMask(
-          shaderCallback: (bounds) => gradient.createShader(bounds),
-          blendMode: BlendMode.srcIn,
-          child: Text(
-            member.initial,
-            style: TextStyle(
-              fontSize: size * 0.38,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-            ),
+        child: Text(
+          member.initial,
+          style: TextStyle(
+            fontSize: size * 0.38,
+            fontWeight: FontWeight.w900,
+            color: initialColor,
           ),
         ),
       ),
