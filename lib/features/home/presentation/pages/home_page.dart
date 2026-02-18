@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hometasks/core/routes/app_routes.dart';
+import 'package:hometasks/core/services/task_service.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
 import 'package:hometasks/features/auth/domain/entities/user_entity.dart';
 import 'package:hometasks/features/auth/presentation/bloc/auth_bloc.dart';
@@ -30,22 +31,26 @@ class _HomePageState extends State<HomePage> {
   ViewMode _viewMode = ViewMode.day;
   int _navIndex = 0;
 
-  late List<TaskMock> _dayTasks;
-  late List<TaskMock> _weekTasks;
-
   @override
   void initState() {
     super.initState();
     final now = DateTime.now();
     _selectedDay = now;
     _weekStart = _mondayOf(now);
-    _dayTasks = List.of(kDayTasks);
-    _weekTasks = List.of(kWeekTasks);
+    // Escucha cambios del servicio para reconstruir la UI.
+    TaskService.instance.tasksNotifier.addListener(_onTasksChanged);
   }
 
-  DateTime _mondayOf(DateTime date) {
-    return date.subtract(Duration(days: date.weekday - 1));
+  @override
+  void dispose() {
+    TaskService.instance.tasksNotifier.removeListener(_onTasksChanged);
+    super.dispose();
   }
+
+  void _onTasksChanged() => setState(() {});
+
+  DateTime _mondayOf(DateTime date) =>
+      date.subtract(Duration(days: date.weekday - 1));
 
   void _previousWeek() => setState(() {
         _weekStart = _weekStart.subtract(const Duration(days: 7));
@@ -55,12 +60,9 @@ class _HomePageState extends State<HomePage> {
         _weekStart = _weekStart.add(const Duration(days: 7));
       });
 
-  void _toggleTask(ViewMode mode, int index) {
-    setState(() {
-      final list = mode == ViewMode.day ? _dayTasks : _weekTasks;
-      list[index] = list[index].copyWith(completed: !list[index].completed);
-    });
-  }
+  List<Task> get _currentTasks => _viewMode == ViewMode.day
+      ? TaskService.instance.forDay(_selectedDay)
+      : TaskService.instance.forWeek(_weekStart);
 
   @override
   Widget build(BuildContext context) {
@@ -70,22 +72,24 @@ class _HomePageState extends State<HomePage> {
       },
       builder: (context, state) {
         final user = state is AuthAuthenticated ? state.user : null;
+        final tasks = _currentTasks;
+
         return _HomeScaffold(
           user: user,
           selectedDay: _selectedDay,
           weekStart: _weekStart,
           viewMode: _viewMode,
           navIndex: _navIndex,
-          dayTasks: _dayTasks,
-          weekTasks: _weekTasks,
+          tasks: tasks,
           onDaySelected: (day) => setState(() => _selectedDay = day),
           onPreviousWeek: _previousWeek,
           onNextWeek: _nextWeek,
           onViewModeChanged: (mode) => setState(() => _viewMode = mode),
-          onToggleTask: _toggleTask,
+          onToggleTask: (task) => TaskService.instance.toggleCompleted(task.id),
+          onDeleteTask: (task) => TaskService.instance.remove(task.id),
           onNavTap: (index) {
             if (index == 2) {
-              showCreateTaskSheet(context);
+              showCreateTaskSheet(context, date: _selectedDay);
               return;
             }
             if (index == 4) {
@@ -107,13 +111,13 @@ class _HomeScaffold extends StatelessWidget {
     required this.weekStart,
     required this.viewMode,
     required this.navIndex,
-    required this.dayTasks,
-    required this.weekTasks,
+    required this.tasks,
     required this.onDaySelected,
     required this.onPreviousWeek,
     required this.onNextWeek,
     required this.onViewModeChanged,
     required this.onToggleTask,
+    required this.onDeleteTask,
     required this.onNavTap,
   });
 
@@ -122,23 +126,19 @@ class _HomeScaffold extends StatelessWidget {
   final DateTime weekStart;
   final ViewMode viewMode;
   final int navIndex;
-  final List<TaskMock> dayTasks;
-  final List<TaskMock> weekTasks;
+  final List<Task> tasks;
   final ValueChanged<DateTime> onDaySelected;
   final VoidCallback onPreviousWeek;
   final VoidCallback onNextWeek;
   final ValueChanged<ViewMode> onViewModeChanged;
-  final void Function(ViewMode mode, int index) onToggleTask;
+  final ValueChanged<Task> onToggleTask;
+  final ValueChanged<Task> onDeleteTask;
   final ValueChanged<int> onNavTap;
 
-  List<TaskMock> get _tasks => viewMode == ViewMode.day ? dayTasks : weekTasks;
-
-  int get _completedCount => _tasks.where((t) => t.completed).length;
+  int get _completedCount => tasks.where((t) => t.completed).length;
 
   @override
   Widget build(BuildContext context) {
-    final tasks = _tasks;
-
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       bottomNavigationBar: HomeBottomNav(
@@ -149,59 +149,65 @@ class _HomeScaffold extends StatelessWidget {
         child: navIndex == 3
             ? const SummaryPage()
             : CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  HomeHeader(userName: user?.name ?? 'Mi Hogar'),
-                  const SizedBox(height: AppSpacing.lg),
-                  WeekCalendar(
-                    weekStart: weekStart,
-                    selectedDay: selectedDay,
-                    onDaySelected: onDaySelected,
-                    onPreviousWeek: onPreviousWeek,
-                    onNextWeek: onNextWeek,
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        HomeHeader(userName: user?.name ?? 'Mi Hogar'),
+                        const SizedBox(height: AppSpacing.lg),
+                        WeekCalendar(
+                          weekStart: weekStart,
+                          selectedDay: selectedDay,
+                          onDaySelected: onDaySelected,
+                          onPreviousWeek: onPreviousWeek,
+                          onNextWeek: onNextWeek,
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        ViewModeSelector(
+                          selected: viewMode,
+                          onChanged: onViewModeChanged,
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        WeeklyProgressCard(
+                          completed: _completedCount,
+                          total: tasks.length,
+                          viewMode: viewMode,
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: AppSpacing.lg),
-                  ViewModeSelector(
-                    selected: viewMode,
-                    onChanged: onViewModeChanged,
+                  SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final task = tasks[index];
+                        final pendingCount =
+                            tasks.where((t) => !t.completed).length;
+                        final isLastTask =
+                            !task.completed && pendingCount == 1;
+
+                        return TaskCard(
+                          task: task,
+                          onToggle: () => onToggleTask(task),
+                          isLastTask: isLastTask,
+                          onTap: () => showTaskDetailSheet(
+                            context,
+                            task,
+                            () => onToggleTask(task),
+                            onDelete: () => onDeleteTask(task),
+                            isLastTask: isLastTask,
+                          ),
+                        );
+                      },
+                      childCount: tasks.length,
+                    ),
                   ),
-                  const SizedBox(height: AppSpacing.lg),
-                  WeeklyProgressCard(
-                    completed: _completedCount,
-                    total: tasks.length,
-                    viewMode: viewMode,
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: AppSpacing.x2l),
                   ),
-                  const SizedBox(height: AppSpacing.lg),
                 ],
               ),
-            ),
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final pendingCount = tasks.where((t) => !t.completed).length;
-                  final isLastTask =
-                      !tasks[index].completed && pendingCount == 1;
-                  return TaskCard(
-                    task: tasks[index],
-                    onToggle: () => onToggleTask(viewMode, index),
-                    isLastTask: isLastTask,
-                    onTap: () => showTaskDetailSheet(
-                      context,
-                      tasks[index],
-                      () => onToggleTask(viewMode, index),
-                      isLastTask: isLastTask,
-                    ),
-                  );
-                },
-                childCount: tasks.length,
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.x2l)),
-          ],
-        ),
       ),
     );
   }

@@ -40,106 +40,126 @@ extension TaskCategoryX on TaskCategory {
         TaskCategory.organizacion => AppColors.categoryOrganizingBg,
       };
 
-  // Label en mayúsculas para los badges de las task cards
   String get labelUpper => label.toUpperCase();
+
+  String get key => name;
+
+  static TaskCategory fromKey(String key) =>
+      TaskCategory.values.firstWhere((c) => c.name == key);
 }
 
-class TaskMock {
-  const TaskMock({
+// ── Modelo principal ──────────────────────────────────────────────────────────
+
+class Task {
+  const Task({
+    required this.id,
     required this.title,
-    required this.time,
     required this.category,
+    required this.date,
     this.description,
+    this.time,
+    this.assigneeId,
     this.completed = false,
-    this.assignee,
   });
 
+  final String id;
   final String title;
   final String? description;
-  final String time;
+  final String? time;
   final TaskCategory category;
-  final bool completed;
-  final String? assignee;
 
-  TaskMock copyWith({
+  /// Fecha a la que pertenece la tarea (sin hora).
+  final DateTime date;
+
+  /// ID del [FamilyMember] asignado, o null si sin asignar.
+  final String? assigneeId;
+  final bool completed;
+
+  Task copyWith({
+    String? id,
     String? title,
     String? description,
     String? time,
     TaskCategory? category,
+    DateTime? date,
+    String? assigneeId,
     bool? completed,
-    String? assignee,
+    bool clearAssignee = false,
   }) =>
-      TaskMock(
+      Task(
+        id: id ?? this.id,
         title: title ?? this.title,
         description: description ?? this.description,
         time: time ?? this.time,
         category: category ?? this.category,
+        date: date ?? this.date,
+        assigneeId: clearAssignee ? null : (assigneeId ?? this.assigneeId),
         completed: completed ?? this.completed,
-        assignee: assignee ?? this.assignee,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'description': description,
+        'time': time,
+        'category': category.key,
+        'date': date.toIso8601String(),
+        'assigneeId': assigneeId,
+        'completed': completed,
+      };
+
+  factory Task.fromJson(Map<String, dynamic> json) => Task(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        description: json['description'] as String?,
+        time: json['time'] as String?,
+        category: TaskCategoryX.fromKey(json['category'] as String),
+        date: DateTime.parse(json['date'] as String),
+        assigneeId: json['assigneeId'] as String?,
+        completed: json['completed'] as bool? ?? false,
       );
 }
 
-/// Tareas de la semana completa (vista semanal).
-final kWeekTasks = <TaskMock>[
-  const TaskMock(
+// ── Alias de compatibilidad (usado en código legacy mientras se migra) ─────────
+
+/// @deprecated Usar [Task] directamente.
+typedef TaskMock = Task;
+
+// ── Fallback de tareas iniciales ──────────────────────────────────────────────
+
+final _today = DateTime.now();
+final _d = DateTime(_today.year, _today.month, _today.day);
+
+final kTasksFallback = <Task>[
+  Task(
+    id: 'fallback-1',
     title: 'Limpiar ventanas',
-    description: 'Limpiar todas las ventanas de la casa por dentro y por fuer...',
-    time: '8:30',
+    description: 'Limpiar todas las ventanas de la casa por dentro y por fuera',
+    time: '8:30 AM',
     category: TaskCategory.limpieza,
+    date: _d,
     completed: true,
   ),
-  const TaskMock(
-    title: 'Comprar frutas y verduras',
-    description: 'Manzanas, plátanos, tomates, cebollas, lechuga y...',
-    time: '10:00',
-    category: TaskCategory.compras,
-    completed: true,
-  ),
-  const TaskMock(
+  Task(
+    id: 'fallback-2',
     title: 'Regar plantas del balcón',
-    time: '18:00',
+    time: '6:00 PM',
     category: TaskCategory.jardin,
+    date: _d,
   ),
-  const TaskMock(
+  Task(
+    id: 'fallback-3',
     title: 'Preparar cena',
-    time: '19:00',
+    time: '7:00 PM',
     category: TaskCategory.cocina,
-    assignee: 'Carlos',
+    date: _d,
   ),
-  const TaskMock(
-    title: 'Limpiar baños',
-    time: '9:00',
-    category: TaskCategory.limpieza,
-  ),
-  const TaskMock(
+  Task(
+    id: 'fallback-4',
     title: 'Hacer la compra semanal',
     description: 'Lista completa en la app de notas',
-    time: '11:00',
+    time: '11:00 AM',
     category: TaskCategory.compras,
+    date: _d,
   ),
 ];
-
-/// Tareas del día actual (vista diaria).
-final kDayTasks = <TaskMock>[
-  const TaskMock(
-    title: 'Limpiar ventanas',
-    description: 'Limpiar todas las ventanas de la casa por dentro y por fuer...',
-    time: '8:30',
-    category: TaskCategory.limpieza,
-    completed: true,
-  ),
-  const TaskMock(
-    title: 'Regar plantas del balcón',
-    time: '18:00',
-    category: TaskCategory.jardin,
-  ),
-  const TaskMock(
-    title: 'Preparar cena',
-    time: '19:00',
-    category: TaskCategory.cocina,
-    assignee: 'Carlos',
-  ),
-];
-
-// Alias para mantener compatibilidad con código existente.
-final kMockTasks = kWeekTasks;

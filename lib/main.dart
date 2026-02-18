@@ -7,6 +7,7 @@ import 'package:hometasks/core/config/env/env_config.dart';
 import 'package:hometasks/core/di/injection.dart';
 import 'package:hometasks/core/routes/app_router.dart';
 import 'package:hometasks/core/services/member_service.dart';
+import 'package:hometasks/core/services/task_service.dart';
 import 'package:hometasks/core/settings/app_settings_cubit.dart';
 import 'package:hometasks/core/storage/hive_service.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
@@ -24,6 +25,7 @@ Future<void> main() async {
   await hiveService.init();
 
   await MemberService.instance.load();
+  await TaskService.instance.load();
 
   final authBloc = getIt<AuthBloc>();
   authBloc.add(const AuthCheckSessionRequested());

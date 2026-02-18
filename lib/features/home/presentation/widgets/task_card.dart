@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hometasks/core/services/member_service.dart';
 import 'package:hometasks/core/theme/app_colors.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
 import 'package:hometasks/features/home/presentation/widgets/task_mock_data.dart';
@@ -225,27 +226,36 @@ class _CategoryLabel extends StatelessWidget {
 class _MetaRow extends StatelessWidget {
   const _MetaRow({required this.task});
 
-  final TaskMock task;
+  final Task task;
 
   @override
   Widget build(BuildContext context) {
     final mutedColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final assigneeName = task.assigneeId == null
+        ? null
+        : MemberService.instance.members
+            .where((m) => m.id == task.assigneeId)
+            .map((m) => m.displayName)
+            .firstOrNull;
+
     return Row(
       children: [
-        Icon(Icons.access_time_outlined, size: 13, color: mutedColor),
-        const SizedBox(width: 3),
-        Text(
-          task.time,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: mutedColor,
-              ),
-        ),
-        if (task.assignee != null) ...[
+        if (task.time != null) ...[
+          Icon(Icons.access_time_outlined, size: 13, color: mutedColor),
+          const SizedBox(width: 3),
+          Text(
+            task.time!,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: mutedColor,
+                ),
+          ),
+        ],
+        if (assigneeName != null) ...[
           const SizedBox(width: AppSpacing.md),
           Icon(Icons.person_outline, size: 13, color: mutedColor),
           const SizedBox(width: 3),
           Text(
-            task.assignee!,
+            assigneeName,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: mutedColor,
                 ),

@@ -2,18 +2,21 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:hometasks/core/services/member_service.dart';
 import 'package:hometasks/core/theme/app_colors.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
 import 'package:hometasks/features/home/presentation/widgets/task_mock_data.dart';
 import 'package:hometasks/features/home/presentation/widgets/xp_burst_overlay.dart';
 
 /// Muestra el bottom sheet de detalle de tarea.
-/// [onToggle] se invoca cuando el usuario cambia el estado de completado.
-/// [isLastTask] indica si es la última tarea pendiente de la lista.
+/// [onToggle] cambia el estado de completado.
+/// [onDelete] elimina la tarea (cierra el sheet antes de llamarlo).
+/// [isLastTask] indica si es la última tarea pendiente.
 void showTaskDetailSheet(
   BuildContext context,
-  TaskMock task,
+  Task task,
   VoidCallback onToggle, {
+  VoidCallback? onDelete,
   bool isLastTask = false,
 }) {
   showModalBottomSheet<void>(
@@ -25,6 +28,7 @@ void showTaskDetailSheet(
       child: _TaskDetailSheet(
         task: task,
         onToggle: onToggle,
+        onDelete: onDelete,
         isLastTask: isLastTask,
       ),
     ),
@@ -59,11 +63,13 @@ class _TaskDetailSheet extends StatelessWidget {
   const _TaskDetailSheet({
     required this.task,
     required this.onToggle,
+    this.onDelete,
     this.isLastTask = false,
   });
 
-  final TaskMock task;
+  final Task task;
   final VoidCallback onToggle;
+  final VoidCallback? onDelete;
   final bool isLastTask;
 
   @override
@@ -86,7 +92,15 @@ class _TaskDetailSheet extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            _DetailHeader(task: task),
+            _DetailHeader(
+              task: task,
+              onDelete: onDelete == null
+                  ? null
+                  : () {
+                      Navigator.of(context).pop();
+                      onDelete!();
+                    },
+            ),
             const SizedBox(height: AppSpacing.x2l),
             _TitleSection(task: task),
             const SizedBox(height: AppSpacing.lg),
@@ -97,7 +111,7 @@ class _TaskDetailSheet extends StatelessWidget {
             _ToggleButton(
               completed: task.completed,
               l10n: l10n,
-                onPressed: () {
+              onPressed: () {
                 final wasCompleting = !task.completed;
                 onToggle();
                 Navigator.of(context).pop();
@@ -116,13 +130,15 @@ class _TaskDetailSheet extends StatelessWidget {
 // ── Header ─────────────────────────────────────────────────────────────────
 
 class _DetailHeader extends StatelessWidget {
-  const _DetailHeader({required this.task});
+  const _DetailHeader({required this.task, this.onDelete});
 
-  final TaskMock task;
+  final Task task;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n  = AppLocalizations.of(context)!;
+    final cs    = Theme.of(context).colorScheme;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -144,12 +160,31 @@ class _DetailHeader extends StatelessWidget {
               Text(
                 l10n.taskDetailToday,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      color: cs.onSurfaceVariant,
                     ),
               ),
             ],
           ),
         ),
+        if (onDelete != null) ...[
+          GestureDetector(
+            onTap: onDelete,
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.destructive.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.delete_outline,
+                size: 18,
+                color: AppColors.destructive,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+        ],
         _CloseButton(onTap: () => Navigator.of(context).pop()),
       ],
     );
@@ -207,7 +242,7 @@ class _CloseButton extends StatelessWidget {
 class _TitleSection extends StatelessWidget {
   const _TitleSection({required this.task});
 
-  final TaskMock task;
+  final Task task;
 
   @override
   Widget build(BuildContext context) {
@@ -258,22 +293,36 @@ class _TitleSection extends StatelessWidget {
 class _ChipRow extends StatelessWidget {
   const _ChipRow({required this.task});
 
-  final TaskMock task;
+  final Task task;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final assigneeName = task.assigneeId == null
+        ? null
+        : MemberService.instance.members
+            .where((m) => m.id == task.assigneeId)
+            .map((m) => m.displayName)
+            .firstOrNull;
+
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
       children: [
-        _Chip(
-          icon: Icons.access_time_outlined,
-          label: task.time,
-        ),
-        const SizedBox(width: AppSpacing.sm),
+        if (task.time != null)
+          _Chip(
+            icon: Icons.access_time_outlined,
+            label: task.time!,
+          ),
         _Chip(
           icon: Icons.label_outline,
           label: task.category.label,
           foregroundColor: task.category.foreground,
         ),
+        if (assigneeName != null)
+          _Chip(
+            icon: Icons.person_outline,
+            label: assigneeName,
+          ),
       ],
     );
   }
@@ -327,7 +376,7 @@ class _Chip extends StatelessWidget {
 class _StatusCard extends StatelessWidget {
   const _StatusCard({required this.task, required this.l10n});
 
-  final TaskMock task;
+  final Task task;
   final AppLocalizations l10n;
 
   static const _completedBg = Color(0xFFF0FDF4);

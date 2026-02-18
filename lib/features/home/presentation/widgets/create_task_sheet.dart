@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:hometasks/core/services/task_service.dart';
 import 'package:hometasks/core/theme/app_colors.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
 import 'package:hometasks/features/home/presentation/widgets/assignee_picker_sheet.dart';
@@ -10,13 +11,15 @@ import 'package:hometasks/features/home/presentation/widgets/member_mock_data.da
 import 'package:hometasks/features/home/presentation/widgets/task_mock_data.dart';
 
 /// Muestra el bottom sheet de creación de tarea sobre un overlay con blur.
-void showCreateTaskSheet(BuildContext context) {
+/// [date] es el día al que se asignará la tarea (por defecto hoy).
+void showCreateTaskSheet(BuildContext context, {DateTime? date}) {
+  final targetDate = date ?? DateTime.now();
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.transparent,
-    builder: (_) => const _BlurOverlay(child: _CreateTaskSheet()),
+    builder: (_) => _BlurOverlay(child: _CreateTaskSheet(date: targetDate)),
   );
 }
 
@@ -48,7 +51,9 @@ class _BlurOverlay extends StatelessWidget {
 }
 
 class _CreateTaskSheet extends StatefulWidget {
-  const _CreateTaskSheet();
+  const _CreateTaskSheet({required this.date});
+
+  final DateTime date;
 
   @override
   State<_CreateTaskSheet> createState() => _CreateTaskSheetState();
@@ -150,7 +155,7 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
               const SizedBox(height: AppSpacing.x2l),
               _SubmitButton(
                 label: l10n.addTask,
-                onPressed: _canSubmit ? _submit : null,
+                onPressed: _canSubmit ? () => _submit() : null,
               ),
             ],
           ),
@@ -159,10 +164,26 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
     );
   }
 
-  bool get _canSubmit => _taskController.text.trim().isNotEmpty;
+  bool get _canSubmit =>
+      _taskController.text.trim().isNotEmpty && _selectedCategory != null;
 
-  void _submit() {
-    Navigator.of(context).pop();
+  Future<void> _submit() async {
+    if (!_canSubmit) return;
+
+    final task = Task(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: _taskController.text.trim(),
+      description: _descController.text.trim().isEmpty
+          ? null
+          : _descController.text.trim(),
+      time: _timeController.text.isEmpty ? null : _timeController.text,
+      category: _selectedCategory!,
+      date: widget.date,
+      assigneeId: _selectedAssignee?.id,
+    );
+
+    await TaskService.instance.add(task);
+    if (mounted) Navigator.of(context).pop();
   }
 }
 
