@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -449,7 +448,7 @@ class _RankRow extends StatelessWidget {
   }
 }
 
-// ── Avatar con anillo animado ─────────────────────────────────────────────────
+// ── Avatar con efecto palpitante (1° lugar) ───────────────────────────────────
 
 class _AnimatedRingAvatar extends StatefulWidget {
   const _AnimatedRingAvatar({required this.member, required this.size});
@@ -464,14 +463,24 @@ class _AnimatedRingAvatar extends StatefulWidget {
 class _AnimatedRingAvatarState extends State<_AnimatedRingAvatar>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  late final Animation<double> _scale;
+  late final Animation<double> _glow;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat();
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+
+    _scale = Tween<double>(begin: 1.0, end: 1.08).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+
+    _glow = Tween<double>(begin: 6.0, end: 18.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
   }
 
   @override
@@ -484,21 +493,21 @@ class _AnimatedRingAvatarState extends State<_AnimatedRingAvatar>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _controller,
-      builder: (_, child) => Transform.rotate(
-        angle: _controller.value * 2 * math.pi,
+      builder: (_, child) => Transform.scale(
+        scale: _scale.value,
         child: Container(
           width: widget.size + 6,
           height: widget.size + 6,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: SweepGradient(
-              colors: [
-                AppColors.xpGold,
-                AppColors.indigo400,
-                AppColors.violet400,
-                AppColors.xpGold,
-              ],
-            ),
+            gradient: podiumGoldGradient,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.xpGold.withOpacity(0.65),
+                blurRadius: _glow.value,
+                spreadRadius: _glow.value * 0.2,
+              ),
+            ],
           ),
           padding: const EdgeInsets.all(2.5),
           child: child,
