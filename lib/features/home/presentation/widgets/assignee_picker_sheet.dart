@@ -28,8 +28,12 @@ class _BlurOverlay extends StatelessWidget {
     return Stack(
       children: [
         Positioned.fill(
-          child: GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
+          // Listener en lugar de GestureDetector: no participa en la arena de
+          // gestos, por lo que el drag nativo del ModalBottomSheet recibe los
+          // eventos verticales y el swipe-down para cerrar funciona correctamente.
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerUp: (_) => Navigator.of(context).pop(),
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
               child: Container(color: Colors.black.withOpacity(0.25)),
@@ -71,11 +75,13 @@ class _AssigneePickerSheet extends StatelessWidget {
               builder: (context, members, _) {
                 if (members.isEmpty) {
                   return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.x2l),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: AppSpacing.x2l),
                     child: Text(
                       'No hay miembros. Agrega uno desde Ajustes.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                       textAlign: TextAlign.center,
                     ),
@@ -86,7 +92,8 @@ class _AssigneePickerSheet extends StatelessWidget {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: members.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(height: AppSpacing.sm),
                   itemBuilder: (context, index) => _MemberTile(
                     member: members[index],
                     onTap: () => Navigator.of(context).pop(members[index]),
@@ -143,7 +150,7 @@ class _MemberTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs     = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return InkWell(

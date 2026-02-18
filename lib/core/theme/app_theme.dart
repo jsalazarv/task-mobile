@@ -13,11 +13,13 @@ export 'app_text_styles.dart';
 /// Genera el [ThemeData] de Material 3 con los tokens de shadcn/ui.
 abstract final class AppTheme {
   static ThemeData get light => _build(brightness: Brightness.light);
-  static ThemeData get dark  => _build(brightness: Brightness.dark);
+  static ThemeData get dark => _build(brightness: Brightness.dark);
 
   /// Genera un tema con color primario personalizado.
-  static ThemeData withPrimary(Color primaryColor, {required Brightness brightness}) =>
-      _build(brightness: brightness, customPrimary: primaryColor);
+  static ThemeData withPrimary(
+    Color primaryColor, {
+    required Brightness brightness,
+  }) => _build(brightness: brightness, customPrimary: primaryColor);
 
   static ThemeData _build({
     required Brightness brightness,
@@ -25,17 +27,21 @@ abstract final class AppTheme {
   }) {
     final isDark = brightness == Brightness.dark;
 
-    final bg              = isDark ? AppColors.backgroundDark       : AppColors.background;
-    final fg              = isDark ? AppColors.foregroundDark        : AppColors.foreground;
-    final cardColor       = isDark ? AppColors.cardDark              : AppColors.card;
-    final borderCol       = isDark ? AppColors.borderDark            : AppColors.border;
-    final mutedCol        = isDark ? AppColors.mutedDark             : AppColors.muted;
-    final mutedFg         = isDark ? AppColors.mutedForegroundDark   : AppColors.mutedForeground;
+    final bg = isDark ? AppColors.backgroundDark : AppColors.background;
+    final fg = isDark ? AppColors.foregroundDark : AppColors.foreground;
+    final cardColor = isDark ? AppColors.cardDark : AppColors.card;
+    final borderCol = isDark ? AppColors.borderDark : AppColors.border;
+    final mutedCol = isDark ? AppColors.mutedDark : AppColors.muted;
+    final mutedFg =
+        isDark ? AppColors.mutedForegroundDark : AppColors.mutedForeground;
     // En dark usamos el fondo como scaffoldBg (mismo que bg), sin el warm off-white claro.
-    final primary         = customPrimary ?? (isDark ? AppColors.primaryDark : AppColors.primary);
-    final primaryFg       = _contrastColor(primary);
-    final primaryContainer = isDark ? AppColors.primaryContainerDark : AppColors.primaryContainer;
-    final onPrimaryContainer = isDark ? AppColors.indigo200          : AppColors.indigo700;
+    final primary =
+        customPrimary ?? (isDark ? AppColors.primaryDark : AppColors.primary);
+    final primaryFg = _contrastColor(primary);
+    final primaryContainer =
+        isDark ? AppColors.primaryContainerDark : AppColors.primaryContainer;
+    final onPrimaryContainer =
+        isDark ? AppColors.indigo200 : AppColors.indigo700;
 
     final colorScheme = ColorScheme(
       brightness: brightness,
@@ -44,7 +50,10 @@ abstract final class AppTheme {
       primaryContainer: primaryContainer,
       onPrimaryContainer: onPrimaryContainer,
       secondary: isDark ? AppColors.secondaryDark : AppColors.secondary,
-      onSecondary: isDark ? AppColors.secondaryForegroundDark : AppColors.secondaryForeground,
+      onSecondary:
+          isDark
+              ? AppColors.secondaryForegroundDark
+              : AppColors.secondaryForeground,
       error: AppColors.destructive,
       onError: AppColors.destructiveForeground,
       surface: cardColor,
@@ -60,7 +69,6 @@ abstract final class AppTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: bg,
 
-
       // --- AppBar ---
       appBarTheme: AppBarTheme(
         backgroundColor: bg,
@@ -69,13 +77,12 @@ abstract final class AppTheme {
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: AppTextStyles.h4.copyWith(color: fg),
-        systemOverlayStyle: isDark
-            ? SystemUiOverlayStyle.light
-            : SystemUiOverlayStyle.dark,
+        systemOverlayStyle:
+            isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
       ),
 
       // --- Card ---
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: cardColor,
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -89,7 +96,10 @@ abstract final class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: bg,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
         border: OutlineInputBorder(
           borderRadius: AppRadius.input,
           borderSide: BorderSide(color: borderCol),
@@ -112,7 +122,9 @@ abstract final class AppTheme {
         ),
         hintStyle: AppTextStyles.body.copyWith(color: mutedFg),
         labelStyle: AppTextStyles.label.copyWith(color: mutedFg),
-        errorStyle: AppTextStyles.labelSM.copyWith(color: AppColors.destructive),
+        errorStyle: AppTextStyles.labelSM.copyWith(
+          color: AppColors.destructive,
+        ),
       ),
 
       // --- Elevated Button (primary) ---
@@ -154,11 +166,7 @@ abstract final class AppTheme {
       ),
 
       // --- Divider ---
-      dividerTheme: DividerThemeData(
-        color: borderCol,
-        thickness: 1,
-        space: 0,
-      ),
+      dividerTheme: DividerThemeData(color: borderCol, thickness: 1, space: 0),
 
       // --- SnackBar ---
       snackBarTheme: SnackBarThemeData(
@@ -191,10 +199,7 @@ abstract final class AppTheme {
         labelLarge: AppTextStyles.labelLG,
         labelMedium: AppTextStyles.label,
         labelSmall: AppTextStyles.labelSM,
-      ).apply(
-        bodyColor: fg,
-        displayColor: fg,
-      ),
+      ).apply(bodyColor: fg, displayColor: fg),
     );
   }
 

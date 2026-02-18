@@ -44,6 +44,7 @@ class FamilyMember {
     this.avatarImagePath,
     required this.avatarColor,
     this.score = 0,
+    this.totalXp = 0,
     this.totalTasks = 0,
     this.level = 1,
     this.streakDays = 0,
@@ -54,7 +55,13 @@ class FamilyMember {
   final String? nickname;
   final String? avatarImagePath;
   final Color avatarColor;
+
+  /// XP acumulado en la semana actual (para el podio semanal).
   final int score;
+
+  /// XP total histórico acumulado (determina el nivel).
+  final int totalXp;
+
   final int totalTasks;
   final int level;
   final int streakDays;
@@ -72,6 +79,7 @@ class FamilyMember {
     String? avatarImagePath,
     Color? avatarColor,
     int? score,
+    int? totalXp,
     int? totalTasks,
     int? level,
     int? streakDays,
@@ -83,6 +91,7 @@ class FamilyMember {
         avatarImagePath: avatarImagePath ?? this.avatarImagePath,
         avatarColor: avatarColor ?? this.avatarColor,
         score: score ?? this.score,
+        totalXp: totalXp ?? this.totalXp,
         totalTasks: totalTasks ?? this.totalTasks,
         level: level ?? this.level,
         streakDays: streakDays ?? this.streakDays,
@@ -95,6 +104,7 @@ class FamilyMember {
         'avatarImagePath': avatarImagePath,
         'avatarColor': avatarColor.value,
         'score': score,
+        'totalXp': totalXp,
         'totalTasks': totalTasks,
         'level': level,
         'streakDays': streakDays,
@@ -107,6 +117,7 @@ class FamilyMember {
         avatarImagePath: json['avatarImagePath'] as String?,
         avatarColor: Color(json['avatarColor'] as int),
         score: json['score'] as int? ?? 0,
+        totalXp: json['totalXp'] as int? ?? 0,
         totalTasks: json['totalTasks'] as int? ?? 0,
         level: json['level'] as int? ?? 1,
         streakDays: json['streakDays'] as int? ?? 0,

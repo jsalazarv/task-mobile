@@ -2,7 +2,8 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:hometasks/l10n/generated/app_localizations.dart';
+import 'package:hometasks/core/services/member_service.dart';
 import 'package:hometasks/core/services/task_service.dart';
 import 'package:hometasks/core/theme/app_colors.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
@@ -10,31 +11,57 @@ import 'package:hometasks/features/home/presentation/widgets/assignee_picker_she
 import 'package:hometasks/features/home/presentation/widgets/member_mock_data.dart';
 import 'package:hometasks/features/home/presentation/widgets/task_mock_data.dart';
 
-/// Muestra el bottom sheet de creación de tarea sobre un overlay con blur.
-/// [date] es el día al que se asignará la tarea (por defecto hoy).
+/// Abre el sheet para crear una tarea nueva en [date].
 void showCreateTaskSheet(BuildContext context, {DateTime? date}) {
-  final targetDate = date ?? DateTime.now();
+  _openTaskFormSheet(context, date: date ?? DateTime.now());
+}
+
+/// Abre el sheet para editar [task] existente.
+void showEditTaskSheet(BuildContext context, Task task) {
+  _openTaskFormSheet(context, existing: task, date: task.date);
+}
+
+void _openTaskFormSheet(
+  BuildContext context, {
+  required DateTime date,
+  Task? existing,
+}) {
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.transparent,
-    builder: (_) => _BlurOverlay(child: _CreateTaskSheet(date: targetDate)),
+    builder:
+        (ctx) => _BlurOverlay(
+          child: DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.85,
+            minChildSize: 0.4,
+            maxChildSize: 0.95,
+            snap: true,
+            snapSizes: const [0.85, 0.95],
+            builder:
+                (_, scrollController) => _TaskFormSheet(
+                  date: date,
+                  existing: existing,
+                  scrollController: scrollController,
+                ),
+          ),
+        ),
   );
 }
 
-/// Overlay con blur que envuelve el sheet.
 class _BlurOverlay extends StatelessWidget {
   const _BlurOverlay({required this.child});
-
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Blur sobre toda la pantalla
         Positioned.fill(
+          // Solo registra onTap para cerrar — no declara handlers de drag para
+          // que el BottomSheet nativo pueda ganar la arena de gestos verticales.
           child: GestureDetector(
             onTap: () => Navigator.of(context).pop(),
             child: BackdropFilter(
@@ -43,42 +70,120 @@ class _BlurOverlay extends StatelessWidget {
             ),
           ),
         ),
-        // Sheet en la parte inferior
         Align(alignment: Alignment.bottomCenter, child: child),
       ],
     );
   }
 }
 
-class _CreateTaskSheet extends StatefulWidget {
-  const _CreateTaskSheet({required this.date});
+class _TaskFormSheet extends StatefulWidget {
+  const _TaskFormSheet({
+    required this.date,
+    required this.scrollController,
+    this.existing,
+  });
 
   final DateTime date;
+  final Task? existing;
+  final ScrollController scrollController;
 
   @override
-  State<_CreateTaskSheet> createState() => _CreateTaskSheetState();
+  State<_TaskFormSheet> createState() => _TaskFormSheetState();
 }
 
-class _CreateTaskSheetState extends State<_CreateTaskSheet> {
-  final _taskController = TextEditingController();
-  final _descController = TextEditingController();
-  final _timeController = TextEditingController();
-  TaskCategory? _selectedCategory;
-  FamilyMember? _selectedAssignee;
+class _TaskFormSheetState extends State<_TaskFormSheet> {
+  late final TextEditingController _titleCtrl;
+  late final TextEditingController _descCtrl;
+  late final TextEditingController _timeCtrl;
+  late TaskCategory? _category;
+  late FamilyMember? _assignee;
+  late DateTime _date;
+  late int _xpValue;
+
+  bool _saving = false;
+
+  bool get _isEditing => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final t = widget.existing;
+    _titleCtrl = TextEditingController(text: t?.title ?? '');
+    _descCtrl = TextEditingController(text: t?.description ?? '');
+    _timeCtrl = TextEditingController(text: t?.time ?? '');
+    _category = t?.category;
+    _date = t?.date ?? widget.date;
+    _xpValue = t?.xpValue ?? 10;
+
+    // Resuelve el FamilyMember del assigneeId existente.
+    final members = MemberService.instance.members;
+    _assignee =
+        t?.assigneeId == null
+            ? null
+            : members.where((m) => m.id == t!.assigneeId).firstOrNull;
+
+    _titleCtrl.addListener(() => setState(() {}));
+  }
 
   @override
   void dispose() {
-    _taskController.dispose();
-    _descController.dispose();
-    _timeController.dispose();
+    _titleCtrl.dispose();
+    _descCtrl.dispose();
+    _timeCtrl.dispose();
     super.dispose();
+  }
+
+  bool get _canSubmit => _titleCtrl.text.trim().isNotEmpty && _category != null;
+
+  Future<void> _submit() async {
+    if (!_canSubmit || _saving) return;
+    setState(() => _saving = true);
+
+    if (_isEditing) {
+      final updated = widget.existing!.copyWith(
+        title: _titleCtrl.text.trim(),
+        description:
+            _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+        time: _timeCtrl.text.isEmpty ? null : _timeCtrl.text,
+        category: _category,
+        date: _date,
+        assigneeId: _assignee?.id,
+        clearAssignee: _assignee == null,
+        xpValue: _xpValue,
+      );
+      await TaskService.instance.update(updated);
+    } else {
+      final task = Task(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        title: _titleCtrl.text.trim(),
+        description:
+            _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+        time: _timeCtrl.text.isEmpty ? null : _timeCtrl.text,
+        category: _category!,
+        date: _date,
+        assigneeId: _assignee?.id,
+        xpValue: _xpValue,
+      );
+      await TaskService.instance.add(task);
+    }
+
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) setState(() => _date = picked);
   }
 
   @override
   Widget build(BuildContext context) {
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
     final bottomSafe = MediaQuery.of(context).padding.bottom;
-
     final l10n = AppLocalizations.of(context)!;
 
     return Material(
@@ -95,27 +200,46 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
               : bottomSafe + AppSpacing.x2l,
         ),
         child: SingleChildScrollView(
+          // El scrollController del DraggableScrollableSheet coordina el scroll
+          // interno con el drag del sheet: cuando el scroll llega al tope,
+          // el gesto pasa al sheet para que lo cierre con swipe-down.
+          controller: widget.scrollController,
+          physics: const ClampingScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _SheetHeader(onClose: () => Navigator.of(context).pop()),
+              _SheetHeader(
+                isEditing: _isEditing,
+                onClose: () => Navigator.of(context).pop(),
+              ),
               const SizedBox(height: AppSpacing.x2l),
+
               _SectionLabel(label: l10n.taskFieldLabel),
               const SizedBox(height: AppSpacing.sm),
-              _TaskField(controller: _taskController, hint: l10n.taskFieldHint),
+              _TaskField(controller: _titleCtrl, hint: l10n.taskFieldHint),
               const SizedBox(height: AppSpacing.lg),
-              _SectionLabel(label: l10n.descFieldLabel, suffix: l10n.descFieldOptional),
+
+              _SectionLabel(
+                label: l10n.descFieldLabel,
+                suffix: l10n.descFieldOptional,
+              ),
               const SizedBox(height: AppSpacing.sm),
-              _DescriptionField(controller: _descController, hint: l10n.descFieldHint),
+              _DescriptionField(
+                controller: _descCtrl,
+                hint: l10n.descFieldHint,
+              ),
               const SizedBox(height: AppSpacing.lg),
+
               _SectionLabel(label: l10n.categoryLabel),
               const SizedBox(height: AppSpacing.md),
               _CategoryGrid(
-                selected: _selectedCategory,
-                onSelected: (cat) => setState(() => _selectedCategory = cat),
+                selected: _category,
+                onSelected: (cat) => setState(() => _category = cat),
               ),
               const SizedBox(height: AppSpacing.lg),
+
+              // Hora + Fecha
               Row(
                 children: [
                   Expanded(
@@ -124,7 +248,7 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                       children: [
                         _SectionLabel(label: l10n.timeLabel),
                         const SizedBox(height: AppSpacing.sm),
-                        _TimeField(controller: _timeController),
+                        _TimeField(controller: _timeCtrl),
                       ],
                     ),
                   ),
@@ -133,19 +257,50 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        _SectionLabel(label: 'FECHA'),
+                        const SizedBox(height: AppSpacing.sm),
+                        _DateField(date: _date, onTap: _pickDate),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+
+              // Responsable + XP
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         _SectionLabel(label: l10n.assigneeLabel),
                         const SizedBox(height: AppSpacing.sm),
                         _AssigneePicker(
-                          selected: _selectedAssignee,
+                          selected: _assignee,
                           hint: l10n.assigneeHint,
                           onTap: () async {
                             final picked = await showAssigneePickerSheet(
                               context,
                             );
                             if (picked != null) {
-                              setState(() => _selectedAssignee = picked);
+                              setState(() => _assignee = picked);
                             }
                           },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _SectionLabel(label: 'XP'),
+                        const SizedBox(height: AppSpacing.sm),
+                        _XpPicker(
+                          value: _xpValue,
+                          onChanged: (v) => setState(() => _xpValue = v),
                         ),
                       ],
                     ),
@@ -153,9 +308,12 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                 ],
               ),
               const SizedBox(height: AppSpacing.x2l),
+
               _SubmitButton(
-                label: l10n.addTask,
-                onPressed: _canSubmit ? () => _submit() : null,
+                label: _isEditing ? 'Guardar cambios' : l10n.addTask,
+                enabled: _canSubmit,
+                saving: _saving,
+                onPressed: () => _submit(),
               ),
             ],
           ),
@@ -163,35 +321,14 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
       ),
     );
   }
-
-  bool get _canSubmit =>
-      _taskController.text.trim().isNotEmpty && _selectedCategory != null;
-
-  Future<void> _submit() async {
-    if (!_canSubmit) return;
-
-    final task = Task(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: _taskController.text.trim(),
-      description: _descController.text.trim().isEmpty
-          ? null
-          : _descController.text.trim(),
-      time: _timeController.text.isEmpty ? null : _timeController.text,
-      category: _selectedCategory!,
-      date: widget.date,
-      assigneeId: _selectedAssignee?.id,
-    );
-
-    await TaskService.instance.add(task);
-    if (mounted) Navigator.of(context).pop();
-  }
 }
 
-// ── Sub-widgets ────────────────────────────────────────────────────────────
+// ── Sub-widgets ────────────────────────────────────────────────────────────────
 
 class _SheetHeader extends StatelessWidget {
-  const _SheetHeader({required this.onClose});
+  const _SheetHeader({required this.isEditing, required this.onClose});
 
+  final bool isEditing;
   final VoidCallback onClose;
 
   @override
@@ -206,32 +343,34 @@ class _SheetHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                l10n.newTask,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                isEditing ? 'Editar tarea' : l10n.newTask,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
               ),
               Text(
-                l10n.localeName == 'en' ? 'Today' : 'Hoy',
+                isEditing
+                    ? 'Modifica los detalles de la tarea'
+                    : l10n.localeName == 'en'
+                    ? 'Today'
+                    : 'Hoy',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
         ),
         GestureDetector(
           onTap: onClose,
-          child: Builder(
-            builder: (context) => Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.close, size: 18),
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              shape: BoxShape.circle,
             ),
+            child: const Icon(Icons.close, size: 18),
           ),
         ),
       ],
@@ -252,18 +391,18 @@ class _SectionLabel extends StatelessWidget {
         Text(
           label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.8,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.8,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
         ),
         if (suffix != null) ...[
           const SizedBox(width: AppSpacing.xs),
           Text(
             suffix!,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ],
@@ -326,7 +465,7 @@ class _TimeField extends StatelessWidget {
       controller: controller,
       readOnly: true,
       style: Theme.of(context).textTheme.bodyMedium,
-      decoration: _inputDecoration(context, '--:-- ----').copyWith(
+      decoration: _inputDecoration(context, '--:-- --').copyWith(
         suffixIcon: Icon(
           Icons.access_time_outlined,
           size: 18,
@@ -345,6 +484,43 @@ class _TimeField extends StatelessWidget {
           controller.text = '$h:$m $period';
         }
       },
+    );
+  }
+}
+
+class _DateField extends StatelessWidget {
+  const _DateField({required this.date, required this.onTap});
+
+  final DateTime date;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final label = '${date.day}/${date.month}/${date.year}';
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest,
+          borderRadius: AppRadius.card,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
+            ),
+            Icon(
+              Icons.calendar_today_outlined,
+              size: 16,
+              color: cs.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -392,16 +568,12 @@ class _AssigneePicker extends StatelessWidget {
               Expanded(
                 child: Text(
                   hint,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: cs.onSurfaceVariant,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
                 ),
               ),
-            Icon(
-              Icons.expand_more,
-              size: 18,
-              color: cs.onSurfaceVariant,
-            ),
+            Icon(Icons.expand_more, size: 18, color: cs.onSurfaceVariant),
           ],
         ),
       ),
@@ -426,35 +598,129 @@ class _MiniAvatar extends StatelessWidget {
         color: member.avatarColor.withOpacity(0.25),
         shape: BoxShape.circle,
         border: Border.all(color: member.avatarColor, width: 1.5),
-        image: imagePath != null
-            ? DecorationImage(
-                image: FileImage(File(imagePath)),
-                fit: BoxFit.cover,
-              )
-            : null,
+        image:
+            imagePath != null
+                ? DecorationImage(
+                  image: FileImage(File(imagePath)),
+                  fit: BoxFit.cover,
+                )
+                : null,
       ),
       alignment: Alignment.center,
-      child: imagePath == null
-          ? Text(
-              member.initial,
-              style: TextStyle(
-                fontSize: size * 0.42,
-                fontWeight: FontWeight.w800,
-                color: member.avatarColor,
-              ),
-            )
-          : null,
+      child:
+          imagePath == null
+              ? Text(
+                member.initial,
+                style: TextStyle(
+                  fontSize: size * 0.42,
+                  fontWeight: FontWeight.w800,
+                  color: member.avatarColor,
+                ),
+              )
+              : null,
     );
   }
 }
+
+// ── XP Picker ─────────────────────────────────────────────────────────────────
+
+class _XpPicker extends StatelessWidget {
+  const _XpPicker({required this.value, required this.onChanged});
+
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  static const _values = [5, 10, 15, 20, 25, 30, 40, 50, 75, 100];
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: AppRadius.card,
+      ),
+      child: Row(
+        children: [
+          // Botón decrementar
+          _XpArrow(
+            icon: Icons.remove,
+            onTap: () {
+              final idx = _values.indexOf(value);
+              if (idx > 0) onChanged(_values[idx - 1]);
+            },
+          ),
+          // Valor central
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ShaderMask(
+                  shaderCallback:
+                      (b) => const LinearGradient(
+                        colors: [AppColors.xpGold, AppColors.streakOrange],
+                      ).createShader(b),
+                  blendMode: BlendMode.srcIn,
+                  child: const Icon(Icons.bolt, size: 14, color: Colors.white),
+                ),
+                const SizedBox(width: 3),
+                Text(
+                  '$value',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.xpGold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Botón incrementar
+          _XpArrow(
+            icon: Icons.add,
+            onTap: () {
+              final idx = _values.indexOf(value);
+              if (idx < _values.length - 1) onChanged(_values[idx + 1]);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _XpArrow extends StatelessWidget {
+  const _XpArrow({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        child: Icon(
+          icon,
+          size: 18,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Category grid ─────────────────────────────────────────────────────────────
 
 InputDecoration _inputDecoration(BuildContext context, String hint) {
   final cs = Theme.of(context).colorScheme;
   return InputDecoration(
     hintText: hint,
-    hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: cs.onSurfaceVariant,
-        ),
+    hintStyle: Theme.of(
+      context,
+    ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
     filled: true,
     fillColor: cs.surfaceContainerHighest,
     contentPadding: const EdgeInsets.symmetric(
@@ -471,27 +737,19 @@ InputDecoration _inputDecoration(BuildContext context, String hint) {
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: AppRadius.card,
-      borderSide: BorderSide(
-        color: Theme.of(context).colorScheme.primary,
-        width: 1.5,
-      ),
+      borderSide: BorderSide(color: cs.primary, width: 1.5),
     ),
   );
 }
 
 class _CategoryGrid extends StatelessWidget {
-  const _CategoryGrid({
-    required this.selected,
-    required this.onSelected,
-  });
+  const _CategoryGrid({required this.selected, required this.onSelected});
 
   final TaskCategory? selected;
   final ValueChanged<TaskCategory> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    const categories = TaskCategory.values;
-
     return GridView.count(
       crossAxisCount: 3,
       crossAxisSpacing: AppSpacing.sm,
@@ -499,14 +757,15 @@ class _CategoryGrid extends StatelessWidget {
       childAspectRatio: 1.2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      children: categories.map((cat) {
-        final isSelected = cat == selected;
-        return _CategoryCell(
-          category: cat,
-          isSelected: isSelected,
-          onTap: () => onSelected(cat),
-        );
-      }).toList(),
+      children:
+          TaskCategory.values.map((cat) {
+            final isSelected = cat == selected;
+            return _CategoryCell(
+              category: cat,
+              isSelected: isSelected,
+              onTap: () => onSelected(cat),
+            );
+          }).toList(),
     );
   }
 }
@@ -533,9 +792,10 @@ class _CategoryCell extends StatelessWidget {
         decoration: BoxDecoration(
           color: cs.surfaceContainerHighest,
           borderRadius: AppRadius.card,
-          border: isSelected
-              ? Border.all(color: cs.primary, width: 1.5)
-              : Border.all(color: Colors.transparent, width: 1.5),
+          border:
+              isSelected
+                  ? Border.all(color: cs.primary, width: 1.5)
+                  : Border.all(color: Colors.transparent, width: 1.5),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -545,12 +805,9 @@ class _CategoryCell extends StatelessWidget {
             Text(
               category.label,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    // El borde (cs.primary) ya indica selección;
-                    // el texto usa onSurface para garantizar legibilidad.
-                    color: cs.onSurface,
-                    fontWeight:
-                        isSelected ? FontWeight.w600 : FontWeight.w400,
-                  ),
+                color: cs.onSurface,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -561,23 +818,28 @@ class _CategoryCell extends StatelessWidget {
 }
 
 class _SubmitButton extends StatelessWidget {
-  const _SubmitButton({required this.label, this.onPressed});
+  const _SubmitButton({
+    required this.label,
+    required this.enabled,
+    required this.saving,
+    required this.onPressed,
+  });
 
   final String label;
-  final VoidCallback? onPressed;
+  final bool enabled;
+  final bool saving;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final isEnabled = onPressed != null;
-
     return AnimatedOpacity(
-      opacity: isEnabled ? 1.0 : 0.4,
+      opacity: enabled ? 1.0 : 0.4,
       duration: const Duration(milliseconds: 150),
       child: SizedBox(
         height: 52,
         width: double.infinity,
         child: GestureDetector(
-          onTap: onPressed,
+          onTap: enabled ? onPressed : null,
           child: Container(
             decoration: BoxDecoration(
               gradient: const LinearGradient(
@@ -586,26 +848,36 @@ class _SubmitButton extends StatelessWidget {
                 end: Alignment.centerRight,
               ),
               borderRadius: AppRadius.card,
-              boxShadow: isEnabled
-                  ? [
-                      BoxShadow(
-                        color: AppColors.indigo500.withOpacity(0.55),
-                        blurRadius: 18,
-                        spreadRadius: 0,
-                        offset: const Offset(0, 6),
-                      ),
-                    ]
-                  : null,
+              boxShadow:
+                  enabled
+                      ? [
+                        BoxShadow(
+                          color: AppColors.indigo500.withOpacity(0.55),
+                          blurRadius: 18,
+                          offset: const Offset(0, 6),
+                        ),
+                      ]
+                      : null,
             ),
             alignment: Alignment.center,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: AppColors.white,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
-                  ),
-            ),
+            child:
+                saving
+                    ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                    : Text(
+                      label,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: AppColors.white,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
           ),
         ),
       ),

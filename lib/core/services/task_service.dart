@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:hometasks/core/services/member_service.dart';
 import 'package:hometasks/features/home/presentation/widgets/task_mock_data.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -71,9 +72,23 @@ class TaskService {
     await _persist();
   }
 
+  /// Alterna el estado de completado de una tarea.
+  /// Si tiene asignado un miembro, suma o resta su XP y recalcula la racha.
   Future<void> toggleCompleted(String id) async {
     final task = tasks.firstWhere((t) => t.id == id);
-    await update(task.copyWith(completed: !task.completed));
+    final nowCompleted = !task.completed;
+    await update(task.copyWith(completed: nowCompleted));
+
+    final assigneeId = task.assigneeId;
+    if (assigneeId == null || assigneeId.isEmpty) return;
+
+    if (nowCompleted) {
+      await MemberService.instance.addXp(assigneeId, task.xpValue);
+    } else {
+      await MemberService.instance.removeXp(assigneeId, task.xpValue);
+    }
+
+    await MemberService.instance.recalcStreak(assigneeId);
   }
 
   Future<void> _persist() async {

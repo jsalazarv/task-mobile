@@ -1,10 +1,11 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:hometasks/l10n/generated/app_localizations.dart';
 import 'package:hometasks/core/services/member_service.dart';
 import 'package:hometasks/core/theme/app_colors.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
+import 'package:hometasks/features/home/presentation/widgets/create_task_sheet.dart';
 import 'package:hometasks/features/home/presentation/widgets/task_mock_data.dart';
 import 'package:hometasks/features/home/presentation/widgets/xp_burst_overlay.dart';
 
@@ -45,8 +46,12 @@ class _BlurOverlay extends StatelessWidget {
     return Stack(
       children: [
         Positioned.fill(
-          child: GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
+          // Listener en lugar de GestureDetector: no participa en la arena de
+          // gestos, por lo que el drag nativo del ModalBottomSheet recibe los
+          // eventos verticales y el swipe-down para cerrar funciona correctamente.
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerUp: (_) => Navigator.of(context).pop(),
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
               child: Container(color: Colors.black.withOpacity(0.25)),
@@ -137,8 +142,8 @@ class _DetailHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n  = AppLocalizations.of(context)!;
-    final cs    = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,6 +171,27 @@ class _DetailHeader extends StatelessWidget {
             ],
           ),
         ),
+        // Botón editar
+        GestureDetector(
+          onTap: () {
+            Navigator.of(context).pop();
+            showEditTaskSheet(context, task);
+          },
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.edit_outlined,
+              size: 18,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
         if (onDelete != null) ...[
           GestureDetector(
             onTap: onDelete,
@@ -185,6 +211,7 @@ class _DetailHeader extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.sm),
         ],
+
         _CloseButton(onTap: () => Navigator.of(context).pop()),
       ],
     );
@@ -253,8 +280,7 @@ class _TitleSection extends StatelessWidget {
           task.title,
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w700,
-                decoration:
-                    task.completed ? TextDecoration.lineThrough : null,
+                decoration: task.completed ? TextDecoration.lineThrough : null,
                 color: task.completed
                     ? Theme.of(context).colorScheme.onSurfaceVariant
                     : Theme.of(context).colorScheme.onSurface,
@@ -275,8 +301,7 @@ class _TitleSection extends StatelessWidget {
                 child: Text(
                   task.description!,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color:
-                            Theme.of(context).colorScheme.onSurfaceVariant,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                 ),
               ),
@@ -323,6 +348,11 @@ class _ChipRow extends StatelessWidget {
             icon: Icons.person_outline,
             label: assigneeName,
           ),
+        _Chip(
+          icon: Icons.bolt_rounded,
+          label: '${task.xpValue} XP',
+          foregroundColor: AppColors.xpGold,
+        ),
       ],
     );
   }
@@ -465,9 +495,7 @@ class _StatusCircle extends StatelessWidget {
       decoration: BoxDecoration(
         color: circleColor,
         shape: BoxShape.circle,
-        border: completed
-            ? null
-            : Border.all(color: borderColor, width: 1.5),
+        border: completed ? null : Border.all(color: borderColor, width: 1.5),
       ),
       child: completed
           ? const Icon(Icons.check, size: 16, color: Colors.white)

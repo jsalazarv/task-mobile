@@ -10,12 +10,20 @@ import 'package:hometasks/features/home/presentation/widgets/member_mock_data.da
 import 'package:image_picker/image_picker.dart';
 
 void showCreateMemberSheet(BuildContext context) {
+  _openMemberFormSheet(context);
+}
+
+void showEditMemberSheet(BuildContext context, FamilyMember member) {
+  _openMemberFormSheet(context, existing: member);
+}
+
+void _openMemberFormSheet(BuildContext context, {FamilyMember? existing}) {
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.transparent,
-    builder: (_) => const _BlurOverlay(child: _CreateMemberSheet()),
+    builder: (_) => _BlurOverlay(child: _CreateMemberSheet(existing: existing)),
   );
 }
 
@@ -29,8 +37,12 @@ class _BlurOverlay extends StatelessWidget {
     return Stack(
       children: [
         Positioned.fill(
-          child: GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
+          // Listener en lugar de GestureDetector: no participa en la arena de
+          // gestos, por lo que el drag nativo del ModalBottomSheet recibe los
+          // eventos verticales y el swipe-down para cerrar funciona correctamente.
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerUp: (_) => Navigator.of(context).pop(),
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
               child: Container(color: Colors.black.withOpacity(0.25)),
@@ -44,18 +56,33 @@ class _BlurOverlay extends StatelessWidget {
 }
 
 class _CreateMemberSheet extends StatefulWidget {
-  const _CreateMemberSheet();
+  const _CreateMemberSheet({this.existing});
+
+  final FamilyMember? existing;
 
   @override
   State<_CreateMemberSheet> createState() => _CreateMemberSheetState();
 }
 
 class _CreateMemberSheetState extends State<_CreateMemberSheet> {
-  final _nameController     = TextEditingController();
-  final _nicknameController = TextEditingController();
-  Color _selectedColor      = kAvatarColors.first;
+  late final TextEditingController _nameController;
+  late final TextEditingController _nicknameController;
+  late Color _selectedColor;
   String? _avatarImagePath;
-  bool _saving              = false;
+  bool _saving = false;
+
+  bool get _isEditing => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    _nameController = TextEditingController(text: e?.name ?? '');
+    _nicknameController = TextEditingController(text: e?.nickname ?? '');
+    _selectedColor = e?.avatarColor ?? kAvatarColors.first;
+    _avatarImagePath = e?.avatarImagePath;
+    _nameController.addListener(() => setState(() {}));
+  }
 
   @override
   void dispose() {
@@ -82,25 +109,38 @@ class _CreateMemberSheetState extends State<_CreateMemberSheet> {
     if (!_canSave || _saving) return;
     setState(() => _saving = true);
 
-    final member = FamilyMember(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: _nameController.text.trim(),
-      nickname: _nicknameController.text.trim().isEmpty
-          ? null
-          : _nicknameController.text.trim(),
-      avatarColor: _selectedColor,
-      avatarImagePath: _avatarImagePath,
-    );
+    final name = _nameController.text.trim();
+    final nickname = _nicknameController.text.trim().isEmpty
+        ? null
+        : _nicknameController.text.trim();
 
-    await MemberService.instance.add(member);
+    if (_isEditing) {
+      final updated = widget.existing!.copyWith(
+        name: name,
+        nickname: nickname,
+        avatarColor: _selectedColor,
+        avatarImagePath: _avatarImagePath,
+      );
+      await MemberService.instance.update(updated);
+    } else {
+      final member = FamilyMember(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: name,
+        nickname: nickname,
+        avatarColor: _selectedColor,
+        avatarImagePath: _avatarImagePath,
+      );
+      await MemberService.instance.add(member);
+    }
+
     if (mounted) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-    final bottomSafe     = MediaQuery.of(context).padding.bottom;
-    final isDark         = Theme.of(context).brightness == Brightness.dark;
+    final bottomSafe = MediaQuery.of(context).padding.bottom;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Material(
       color: Theme.of(context).colorScheme.surface,
@@ -120,7 +160,10 @@ class _CreateMemberSheetState extends State<_CreateMemberSheet> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _SheetHeader(onClose: () => Navigator.of(context).pop()),
+              _SheetHeader(
+                isEditing: _isEditing,
+                onClose: () => Navigator.of(context).pop(),
+              ),
               const SizedBox(height: AppSpacing.x2l),
 
               // ── Avatar preview + pick imagen ────────────────────────────
@@ -168,6 +211,7 @@ class _CreateMemberSheetState extends State<_CreateMemberSheet> {
 
               // ── Botón guardar ───────────────────────────────────────────
               _SaveButton(
+                label: _isEditing ? 'Guardar cambios' : 'Guardar miembro',
                 enabled: _canSave,
                 saving: _saving,
                 onPressed: _save,
@@ -183,8 +227,9 @@ class _CreateMemberSheetState extends State<_CreateMemberSheet> {
 // ── Sub-widgets ────────────────────────────────────────────────────────────────
 
 class _SheetHeader extends StatelessWidget {
-  const _SheetHeader({required this.onClose});
+  const _SheetHeader({required this.isEditing, required this.onClose});
 
+  final bool isEditing;
   final VoidCallback onClose;
 
   @override
@@ -197,13 +242,15 @@ class _SheetHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Nuevo miembro',
+                isEditing ? 'Editar miembro' : 'Nuevo miembro',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
               ),
               Text(
-                'Agrega un integrante a tu hogar',
+                isEditing
+                    ? 'Modifica los datos del miembro'
+                    : 'Agrega un integrante a tu hogar',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
@@ -421,11 +468,13 @@ class _ColorPicker extends StatelessWidget {
 
 class _SaveButton extends StatelessWidget {
   const _SaveButton({
+    required this.label,
     required this.enabled,
     required this.saving,
     required this.onPressed,
   });
 
+  final String label;
   final bool enabled;
   final bool saving;
   final VoidCallback onPressed;
@@ -469,7 +518,7 @@ class _SaveButton extends StatelessWidget {
                     ),
                   )
                 : Text(
-                    'Guardar miembro',
+                    label,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           color: AppColors.white,
                           fontWeight: FontWeight.w700,

@@ -60,6 +60,7 @@ class Task {
     this.time,
     this.assigneeId,
     this.completed = false,
+    this.xpValue = 10,
   });
 
   final String id;
@@ -75,6 +76,9 @@ class Task {
   final String? assigneeId;
   final bool completed;
 
+  /// Puntos XP que vale esta tarea al completarse.
+  final int xpValue;
+
   Task copyWith({
     String? id,
     String? title,
@@ -84,6 +88,7 @@ class Task {
     DateTime? date,
     String? assigneeId,
     bool? completed,
+    int? xpValue,
     bool clearAssignee = false,
   }) =>
       Task(
@@ -95,6 +100,7 @@ class Task {
         date: date ?? this.date,
         assigneeId: clearAssignee ? null : (assigneeId ?? this.assigneeId),
         completed: completed ?? this.completed,
+        xpValue: xpValue ?? this.xpValue,
       );
 
   Map<String, dynamic> toJson() => {
@@ -106,6 +112,7 @@ class Task {
         'date': date.toIso8601String(),
         'assigneeId': assigneeId,
         'completed': completed,
+        'xpValue': xpValue,
       };
 
   factory Task.fromJson(Map<String, dynamic> json) => Task(
@@ -117,6 +124,7 @@ class Task {
         date: DateTime.parse(json['date'] as String),
         assigneeId: json['assigneeId'] as String?,
         completed: json['completed'] as bool? ?? false,
+        xpValue: json['xpValue'] as int? ?? 10,
       );
 }
 

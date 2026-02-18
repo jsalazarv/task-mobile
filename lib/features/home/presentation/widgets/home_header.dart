@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:hometasks/l10n/generated/app_localizations.dart';
+import 'package:hometasks/core/settings/app_settings_cubit.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
 
 class HomeHeader extends StatelessWidget {
-  const HomeHeader({required this.userName, super.key});
-
-  final String userName;
+  const HomeHeader({super.key});
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final homeName = context.select(
+      (AppSettingsCubit c) => c.state.homeName,
+    );
+    final displayName =
+        homeName.isNotEmpty ? homeName : l10n.defaultHomeName;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -32,7 +37,7 @@ class HomeHeader extends StatelessWidget {
                       ),
                 ),
                 Text(
-                  userName.isNotEmpty ? userName : l10n.defaultHomeName,
+                  displayName,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),

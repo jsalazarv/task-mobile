@@ -5,6 +5,7 @@ import 'package:hometasks/core/services/member_service.dart';
 import 'package:hometasks/core/theme/app_colors.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
 import 'package:hometasks/features/home/presentation/widgets/create_member_sheet.dart';
+
 import 'package:hometasks/features/home/presentation/widgets/member_mock_data.dart';
 
 class MembersPage extends StatelessWidget {
@@ -40,6 +41,8 @@ class MembersPage extends StatelessWidget {
                         const SizedBox(height: AppSpacing.sm),
                     itemBuilder: (context, index) => _MemberCard(
                       member: members[index],
+                      onEdit: () =>
+                          showEditMemberSheet(context, members[index]),
                       onDelete: () =>
                           _confirmDelete(context, members[index]),
                     ),
@@ -164,9 +167,14 @@ class _AddButton extends StatelessWidget {
 }
 
 class _MemberCard extends StatelessWidget {
-  const _MemberCard({required this.member, required this.onDelete});
+  const _MemberCard({
+    required this.member,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final FamilyMember member;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   @override
@@ -190,7 +198,9 @@ class _MemberCard extends StatelessWidget {
         onDelete();
         return false;
       },
-      child: Container(
+      child: GestureDetector(
+        onTap: onEdit,
+        child: Container(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
           vertical: AppSpacing.md,
@@ -238,6 +248,7 @@ class _MemberCard extends StatelessWidget {
             _LevelBadge(level: member.level),
           ],
         ),
+      ),
       ),
     );
   }

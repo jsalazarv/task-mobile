@@ -3,38 +3,47 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hometasks/core/routes/app_routes.dart';
+import 'package:hometasks/core/settings/app_settings_cubit.dart';
 import 'package:hometasks/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:hometasks/features/auth/presentation/bloc/auth_state.dart';
 import 'package:hometasks/features/auth/presentation/pages/login_page.dart';
 import 'package:hometasks/features/auth/presentation/pages/register_page.dart';
 import 'package:hometasks/features/home/presentation/pages/home_page.dart';
+import 'package:hometasks/features/onboarding/presentation/pages/onboarding_page.dart';
 import 'package:hometasks/features/settings/presentation/pages/members_page.dart';
 import 'package:hometasks/features/settings/presentation/pages/settings_page.dart';
 
 /// Adaptador que convierte el stream del AuthBloc en un [Listenable]
 /// para que GoRouter se refresque ante cambios de estado.
-class AuthBlocListenable extends ChangeNotifier {
-  AuthBlocListenable(AuthBloc bloc) {
-    _subscription = bloc.stream.listen((_) => notifyListeners());
+class _AuthAndSettingsListenable extends ChangeNotifier {
+  _AuthAndSettingsListenable(
+    AuthBloc authBloc,
+    AppSettingsCubit settingsCubit,
+  ) {
+    _authSub = authBloc.stream.listen((_) => notifyListeners());
+    _settingsSub = settingsCubit.stream.listen((_) => notifyListeners());
   }
 
-  late final StreamSubscription<AuthState> _subscription;
+  late final StreamSubscription<AuthState> _authSub;
+  late final StreamSubscription<AppSettingsState> _settingsSub;
 
   @override
   void dispose() {
-    _subscription.cancel();
+    _authSub.cancel();
+    _settingsSub.cancel();
     super.dispose();
   }
 }
 
-/// Construye el router con acceso al [AuthBloc] ya provisto en el árbol.
-GoRouter buildAppRouter(AuthBloc authBloc) {
-  final listenable = AuthBlocListenable(authBloc);
+/// Construye el router con acceso al [AuthBloc] y [AppSettingsCubit].
+GoRouter buildAppRouter(AuthBloc authBloc, AppSettingsCubit settingsCubit) {
+  final listenable = _AuthAndSettingsListenable(authBloc, settingsCubit);
 
   return GoRouter(
     initialLocation: AppRoutes.login,
     refreshListenable: listenable,
-    redirect: (context, state) => _authGuard(authBloc, state),
+    redirect: (context, state) =>
+        _guard(authBloc, settingsCubit, state),
     routes: [
       GoRoute(
         path: AppRoutes.login,
@@ -45,6 +54,11 @@ GoRouter buildAppRouter(AuthBloc authBloc) {
         path: AppRoutes.register,
         name: 'register',
         builder: (_, __) => const RegisterPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.onboarding,
+        name: 'onboarding',
+        builder: (_, __) => const OnboardingPage(),
       ),
       GoRoute(
         path: AppRoutes.home,
@@ -65,19 +79,38 @@ GoRouter buildAppRouter(AuthBloc authBloc) {
   );
 }
 
-/// Guard de autenticación — única fuente de verdad para redirecciones.
-String? _authGuard(AuthBloc authBloc, GoRouterState state) {
+/// Guard unificado: autenticación + onboarding.
+String? _guard(
+  AuthBloc authBloc,
+  AppSettingsCubit settingsCubit,
+  GoRouterState state,
+) {
   final authState = authBloc.state;
-  final isOnAuth = state.matchedLocation == AppRoutes.login ||
-      state.matchedLocation == AppRoutes.register;
+  final location = state.matchedLocation;
 
+  final isOnAuth = location == AppRoutes.login ||
+      location == AppRoutes.register;
+  final isOnOnboarding = location == AppRoutes.onboarding;
+
+  // Mientras el auth está resolviendo, no redirigir.
   if (authState is AuthInitial || authState is AuthLoading) return null;
 
-  if (authState is AuthAuthenticated && isOnAuth) return AppRoutes.home;
-
+  // Usuario no autenticado → login (excepto si ya está en auth).
   if (authState is AuthUnauthenticated && !isOnAuth) return AppRoutes.login;
+
+  // Usuario autenticado en pantallas de auth → siguiente paso.
+  if (authState is AuthAuthenticated && isOnAuth) {
+    return settingsCubit.state.onboardingComplete
+        ? AppRoutes.home
+        : AppRoutes.onboarding;
+  }
+
+  // Usuario autenticado sin onboarding → forzar onboarding.
+  if (authState is AuthAuthenticated &&
+      !settingsCubit.state.onboardingComplete &&
+      !isOnOnboarding) {
+    return AppRoutes.onboarding;
+  }
 
   return null;
 }
-
-

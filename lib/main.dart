@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:hometasks/l10n/generated/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:hometasks/core/config/env/dev_env.dart';
 import 'package:hometasks/core/config/env/env_config.dart';
@@ -27,8 +27,12 @@ Future<void> main() async {
   await MemberService.instance.load();
   await TaskService.instance.load();
 
-  final authBloc = getIt<AuthBloc>();
-  authBloc.add(const AuthCheckSessionRequested());
+  // Permite a MemberService consultar tareas para calcular rachas
+  // sin crear una dependencia circular en tiempo de compilación.
+  MemberService.instance.tasksProvider = () => TaskService.instance.tasks;
+
+  final authBloc = getIt<AuthBloc>()
+    ..add(const AuthCheckSessionRequested());
 
   runApp(HomeTasks(authBloc: authBloc));
 }
@@ -43,8 +47,14 @@ class HomeTasks extends StatefulWidget {
 }
 
 class _HomeTasksState extends State<HomeTasks> {
-  late final _router = buildAppRouter(widget.authBloc);
   final _settingsCubit = AppSettingsCubit();
+  late final _router = buildAppRouter(widget.authBloc, _settingsCubit);
+
+  @override
+  void initState() {
+    super.initState();
+    _settingsCubit.load();
+  }
 
   @override
   void dispose() {
