@@ -114,5 +114,194 @@
   "@unauthorizedError": { "description": "Session expired message" },
 
   "unexpectedError": "An unexpected error occurred.",
-  "@unexpectedError": { "description": "Generic error message" }
+  "@unexpectedError": { "description": "Generic error message" },
+
+  "greetingMorning": "Good morning",
+  "@greetingMorning": { "description": "Morning greeting" },
+
+  "greetingAfternoon": "Good afternoon",
+  "@greetingAfternoon": { "description": "Afternoon greeting" },
+
+  "greetingEvening": "Good evening",
+  "@greetingEvening": { "description": "Evening greeting" },
+
+  "defaultHomeName": "My Home",
+  "@defaultHomeName": { "description": "Default home name" },
+
+  "viewDay": "Day",
+  "@viewDay": { "description": "Day view tab" },
+
+  "viewWeek": "Week",
+  "@viewWeek": { "description": "Week view tab" },
+
+  "progressDay": "Today's progress",
+  "@progressDay": { "description": "Daily progress card title" },
+
+  "progressWeek": "Weekly progress",
+  "@progressWeek": { "description": "Weekly progress card title" },
+
+  "tasksCompleted": "{completed} of {total} tasks completed",
+  "@tasksCompleted": {
+    "description": "Tasks completed summary",
+    "placeholders": {
+      "completed": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+
+  "newTask": "New task",
+  "@newTask": { "description": "Create task sheet title" },
+
+  "taskFieldLabel": "TASK",
+  "@taskFieldLabel": { "description": "Task field section label" },
+
+  "taskFieldHint": "Describe the task...",
+  "@taskFieldHint": { "description": "Task field hint" },
+
+  "descFieldLabel": "DESCRIPTION",
+  "@descFieldLabel": { "description": "Description field section label" },
+
+  "descFieldOptional": "(optional)",
+  "@descFieldOptional": { "description": "Optional suffix" },
+
+  "descFieldHint": "Add details or notes...",
+  "@descFieldHint": { "description": "Description field hint" },
+
+  "categoryLabel": "CATEGORY",
+  "@categoryLabel": { "description": "Category section label" },
+
+  "timeLabel": "TIME",
+  "@timeLabel": { "description": "Time section label" },
+
+  "assigneeLabel": "ASSIGNEE",
+  "@assigneeLabel": { "description": "Assignee section label" },
+
+  "assigneeHint": "Name",
+  "@assigneeHint": { "description": "Assignee field hint" },
+
+  "addTask": "Add task",
+  "@addTask": { "description": "Submit button on create task sheet" },
+
+  "settingsTitle": "Settings",
+  "@settingsTitle": { "description": "Settings page title" },
+
+  "settingsSectionPreferences": "PREFERENCES",
+  "@settingsSectionPreferences": { "description": "Preferences section header" },
+
+  "settingsSectionAbout": "ABOUT",
+  "@settingsSectionAbout": { "description": "About section header" },
+
+  "settingsSectionLegal": "LEGAL",
+  "@settingsSectionLegal": { "description": "Legal section header" },
+
+  "settingsLanguage": "Language",
+  "@settingsLanguage": { "description": "Language setting label" },
+
+  "settingsLanguageEs": "Español",
+  "@settingsLanguageEs": { "description": "Spanish language option" },
+
+  "settingsLanguageEn": "English",
+  "@settingsLanguageEn": { "description": "English language option" },
+
+  "settingsTheme": "Theme",
+  "@settingsTheme": { "description": "Theme setting label" },
+
+  "settingsThemeDark": "Dark",
+  "@settingsThemeDark": { "description": "Dark theme label" },
+
+  "settingsThemeLight": "Light",
+  "@settingsThemeLight": { "description": "Light theme label" },
+
+  "settingsSounds": "Sounds",
+  "@settingsSounds": { "description": "Sounds setting label" },
+
+  "settingsSoundsOn": "Enabled",
+  "@settingsSoundsOn": { "description": "Sounds enabled label" },
+
+  "settingsSoundsOff": "Disabled",
+  "@settingsSoundsOff": { "description": "Sounds disabled label" },
+
+  "settingsContact": "Contact us",
+  "@settingsContact": { "description": "Contact row title" },
+
+  "settingsContactSubtitle": "Send feedback or report issues",
+  "@settingsContactSubtitle": { "description": "Contact row subtitle" },
+
+  "settingsFollow": "Follow us",
+  "@settingsFollow": { "description": "Follow row title" },
+
+  "settingsFollowSubtitle": "Social media and updates",
+  "@settingsFollowSubtitle": { "description": "Follow row subtitle" },
+
+  "settingsRate": "Rate us",
+  "@settingsRate": { "description": "Rate row title" },
+
+  "settingsRateSubtitle": "Leave a review on the App Store",
+  "@settingsRateSubtitle": { "description": "Rate row subtitle" },
+
+  "settingsTerms": "Terms of service",
+  "@settingsTerms": { "description": "Terms of service row title" },
+
+  "settingsPrivacy": "Privacy policy",
+  "@settingsPrivacy": { "description": "Privacy policy row title" },
+
+  "settingsVersion": "Home v1.0.0",
+  "@settingsVersion": { "description": "App version string" },
+
+  "summaryTitle": "Summary",
+  "@summaryTitle": { "description": "Summary screen title" },
+
+  "summarySubtitle": "This week",
+  "@summarySubtitle": { "description": "Summary screen subtitle" },
+
+  "summaryPoints": "{points} pts",
+  "@summaryPoints": {
+    "description": "Points label for each member",
+    "placeholders": {
+      "points": { "type": "int" }
+    }
+  },
+
+  "summaryWeekRange": "{start} – {end}",
+  "@summaryWeekRange": {
+    "description": "Week date range label",
+    "placeholders": {
+      "start": { "type": "String" },
+      "end": { "type": "String" }
+    }
+  },
+
+  "taskDetailToday": "Today",
+  "@taskDetailToday": { "description": "Date label shown in task detail sheet" },
+
+  "taskDetailStatusPending": "Pending",
+  "@taskDetailStatusPending": { "description": "Pending status label in task detail" },
+
+  "taskDetailStatusPendingSubtitle": "Mark as completed when you're done",
+  "@taskDetailStatusPendingSubtitle": { "description": "Pending status subtitle" },
+
+  "taskDetailStatusCompleted": "Completed",
+  "@taskDetailStatusCompleted": { "description": "Completed status label in task detail" },
+
+  "taskDetailStatusCompletedSubtitle": "This task has already been done",
+  "@taskDetailStatusCompletedSubtitle": { "description": "Completed status subtitle" },
+
+  "taskDetailMarkCompleted": "Mark as completed",
+  "@taskDetailMarkCompleted": { "description": "CTA button when task is pending" },
+
+  "taskDetailMarkPending": "Mark as pending",
+  "@taskDetailMarkPending": { "description": "CTA button when task is completed" },
+
+  "monthJanuary": "January",
+  "monthFebruary": "February",
+  "monthMarch": "March",
+  "monthApril": "April",
+  "monthMay": "May",
+  "monthJune": "June",
+  "monthJuly": "July",
+  "monthAugust": "August",
+  "monthSeptember": "September",
+  "monthOctober": "October",
+  "monthNovember": "November",
+  "monthDecember": "December"
 }

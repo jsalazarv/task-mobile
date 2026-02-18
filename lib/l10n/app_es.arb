@@ -42,5 +42,89 @@
   "networkError": "Sin conexión a internet. Verifica tu red.",
   "serverError": "Algo salió mal de nuestro lado. Intenta más tarde.",
   "unauthorizedError": "Tu sesión ha expirado. Por favor inicia sesión de nuevo.",
-  "unexpectedError": "Ocurrió un error inesperado."
+  "unexpectedError": "Ocurrió un error inesperado.",
+
+  "greetingMorning": "Buenos días",
+  "greetingAfternoon": "Buenas tardes",
+  "greetingEvening": "Buenas noches",
+  "defaultHomeName": "Mi Hogar",
+
+  "viewDay": "Día",
+  "viewWeek": "Semana",
+
+  "progressDay": "Progreso del día",
+  "progressWeek": "Progreso semanal",
+  "tasksCompleted": "{completed} de {total} tareas completadas",
+
+  "newTask": "Nueva tarea",
+  "taskFieldLabel": "TAREA",
+  "taskFieldHint": "Describe la tarea...",
+  "descFieldLabel": "DESCRIPCIÓN",
+  "descFieldOptional": "(opcional)",
+  "descFieldHint": "Agrega detalles o notas...",
+  "categoryLabel": "CATEGORÍA",
+  "timeLabel": "HORA",
+  "assigneeLabel": "RESPONSABLE",
+  "assigneeHint": "Nombre",
+  "addTask": "Agregar tarea",
+
+  "settingsTitle": "Configuración",
+  "settingsSectionPreferences": "PREFERENCIAS",
+  "settingsSectionAbout": "ACERCA DE",
+  "settingsSectionLegal": "LEGAL",
+  "settingsLanguage": "Idioma",
+  "settingsLanguageEs": "Español",
+  "settingsLanguageEn": "English",
+  "settingsTheme": "Tema",
+  "settingsThemeDark": "Oscuro",
+  "settingsThemeLight": "Claro",
+  "settingsSounds": "Sonidos",
+  "settingsSoundsOn": "Activados",
+  "settingsSoundsOff": "Desactivados",
+  "settingsContact": "Contáctanos",
+  "settingsContactSubtitle": "Enviar comentarios o reportar problemas",
+  "settingsFollow": "Síguenos",
+  "settingsFollowSubtitle": "Redes sociales y novedades",
+  "settingsRate": "Califícanos",
+  "settingsRateSubtitle": "Déjanos tu opinión en la tienda",
+  "settingsTerms": "Términos de servicio",
+  "settingsPrivacy": "Política de privacidad",
+  "settingsVersion": "Hogar v1.0.0",
+
+  "summaryTitle": "Resumen",
+  "summarySubtitle": "Esta semana",
+  "summaryPoints": "{points} pts",
+  "@summaryPoints": {
+    "placeholders": {
+      "points": { "type": "int" }
+    }
+  },
+  "summaryWeekRange": "{start} – {end}",
+  "@summaryWeekRange": {
+    "placeholders": {
+      "start": { "type": "String" },
+      "end": { "type": "String" }
+    }
+  },
+
+  "taskDetailToday": "Hoy",
+  "taskDetailStatusPending": "Pendiente",
+  "taskDetailStatusPendingSubtitle": "Marca como completada cuando termines",
+  "taskDetailStatusCompleted": "Completada",
+  "taskDetailStatusCompletedSubtitle": "Esta tarea ya fue realizada",
+  "taskDetailMarkCompleted": "Marcar como completada",
+  "taskDetailMarkPending": "Marcar como pendiente",
+
+  "monthJanuary": "Enero",
+  "monthFebruary": "Febrero",
+  "monthMarch": "Marzo",
+  "monthApril": "Abril",
+  "monthMay": "Mayo",
+  "monthJune": "Junio",
+  "monthJuly": "Julio",
+  "monthAugust": "Agosto",
+  "monthSeptember": "Septiembre",
+  "monthOctober": "Octubre",
+  "monthNovember": "Noviembre",
+  "monthDecember": "Diciembre"
 }
