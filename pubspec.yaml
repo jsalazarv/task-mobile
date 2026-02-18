@@ -33,7 +33,9 @@ dependencies:
   flutter_localizations:
     sdk: flutter
 
+  audioplayers: ^6.1.0
   cached_network_image: ^3.4.1
+  image_picker: ^1.1.2
   connectivity_plus: ^6.0.5
   cupertino_icons: ^1.0.8
   dartz: ^0.10.1
@@ -81,6 +83,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/sounds/
 
   # To add assets to your application, add an assets section, like this:
   # assets:
