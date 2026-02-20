@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
 
 enum ShadButtonVariant { primary, secondary, outline, ghost, destructive, link }
+
 enum ShadButtonSize { sm, md, lg, icon }
 
 /// Botón inspirado en shadcn/ui Button.
@@ -43,25 +44,36 @@ class ShadButton extends StatelessWidget {
   }
 
   Widget _buildButton(BuildContext context, bool isDisabled) {
-    final style = _resolveStyle(context);
     final content = _buildContent(context);
+
+    if (variant == ShadButtonVariant.primary) {
+      return _PrimaryGradientButton(
+        onPressed: isDisabled ? null : onPressed,
+        height: _height,
+        padding: _padding,
+        textStyle: _textStyle,
+        child: content,
+      );
+    }
+
+    final style = _resolveStyle(context);
 
     return switch (variant) {
       ShadButtonVariant.outline || ShadButtonVariant.ghost => OutlinedButton(
-          onPressed: isDisabled ? null : onPressed,
-          style: style,
-          child: content,
-        ),
+        onPressed: isDisabled ? null : onPressed,
+        style: style,
+        child: content,
+      ),
       ShadButtonVariant.link => TextButton(
-          onPressed: isDisabled ? null : onPressed,
-          style: style,
-          child: content,
-        ),
+        onPressed: isDisabled ? null : onPressed,
+        style: style,
+        child: content,
+      ),
       _ => ElevatedButton(
-          onPressed: isDisabled ? null : onPressed,
-          style: style,
-          child: content,
-        ),
+        onPressed: isDisabled ? null : onPressed,
+        style: style,
+        child: content,
+      ),
     };
   }
 
@@ -81,11 +93,7 @@ class ShadButton extends StatelessWidget {
       return Row(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          leadingIcon!,
-          const SizedBox(width: AppSpacing.sm),
-          child,
-        ],
+        children: [leadingIcon!, const SizedBox(width: AppSpacing.sm), child],
       );
     }
 
@@ -93,34 +101,34 @@ class ShadButton extends StatelessWidget {
   }
 
   double get _height => switch (size) {
-        ShadButtonSize.sm   => 36,
-        ShadButtonSize.md   => 44,
-        ShadButtonSize.lg   => 52,
-        ShadButtonSize.icon => 44,
-      };
+    ShadButtonSize.sm => 36,
+    ShadButtonSize.md => 44,
+    ShadButtonSize.lg => 52,
+    ShadButtonSize.icon => 44,
+  };
 
   EdgeInsets get _padding => switch (size) {
-        ShadButtonSize.sm   => const EdgeInsets.symmetric(horizontal: 12),
-        ShadButtonSize.md   => const EdgeInsets.symmetric(horizontal: 16),
-        ShadButtonSize.lg   => const EdgeInsets.symmetric(horizontal: 24),
-        ShadButtonSize.icon => const EdgeInsets.all(10),
-      };
+    ShadButtonSize.sm => const EdgeInsets.symmetric(horizontal: 12),
+    ShadButtonSize.md => const EdgeInsets.symmetric(horizontal: 16),
+    ShadButtonSize.lg => const EdgeInsets.symmetric(horizontal: 24),
+    ShadButtonSize.icon => const EdgeInsets.all(10),
+  };
 
   TextStyle get _textStyle => switch (size) {
-        ShadButtonSize.sm => AppTextStyles.label,
-        ShadButtonSize.lg => AppTextStyles.bodyLG.copyWith(
-            fontWeight: FontWeight.w500,
-          ),
-        _ => AppTextStyles.button,
-      };
+    ShadButtonSize.sm => AppTextStyles.label,
+    ShadButtonSize.lg => AppTextStyles.bodyLG.copyWith(
+      fontWeight: FontWeight.w500,
+    ),
+    _ => AppTextStyles.button,
+  };
 
   Color _foregroundColor(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return switch (variant) {
-      ShadButtonVariant.primary     => cs.onPrimary,
-      ShadButtonVariant.secondary   => cs.onSecondary,
+      ShadButtonVariant.primary => cs.onPrimary,
+      ShadButtonVariant.secondary => cs.onSecondary,
       ShadButtonVariant.destructive => AppColors.destructiveForeground,
-      _                             => cs.onSurface,
+      _ => cs.onSurface,
     };
   }
 
@@ -139,40 +147,112 @@ class ShadButton extends StatelessWidget {
 
     return switch (variant) {
       ShadButtonVariant.primary => base.copyWith(
-          backgroundColor: WidgetStatePropertyAll(cs.primary),
-          foregroundColor: WidgetStatePropertyAll(cs.onPrimary),
-        ),
+        backgroundColor: WidgetStatePropertyAll(cs.primary),
+        foregroundColor: WidgetStatePropertyAll(cs.onPrimary),
+      ),
       ShadButtonVariant.secondary => base.copyWith(
-          backgroundColor: WidgetStatePropertyAll(cs.secondary),
-          foregroundColor: WidgetStatePropertyAll(cs.onSecondary),
-        ),
+        backgroundColor: WidgetStatePropertyAll(cs.secondary),
+        foregroundColor: WidgetStatePropertyAll(cs.onSecondary),
+      ),
       ShadButtonVariant.destructive => base.copyWith(
-          backgroundColor: const WidgetStatePropertyAll(AppColors.destructive),
-          foregroundColor: const WidgetStatePropertyAll(
-            AppColors.destructiveForeground,
-          ),
+        backgroundColor: const WidgetStatePropertyAll(AppColors.destructive),
+        foregroundColor: const WidgetStatePropertyAll(
+          AppColors.destructiveForeground,
         ),
+      ),
       ShadButtonVariant.outline => base.copyWith(
-          backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
-          foregroundColor: WidgetStatePropertyAll(cs.onSurface),
-          side: WidgetStatePropertyAll(BorderSide(color: cs.outline)),
-        ),
+        backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+        foregroundColor: WidgetStatePropertyAll(cs.onSurface),
+        side: WidgetStatePropertyAll(BorderSide(color: cs.outline)),
+      ),
       ShadButtonVariant.ghost => base.copyWith(
-          backgroundColor: WidgetStateProperty.resolveWith(
-            (states) => states.contains(WidgetState.hovered)
-                ? cs.surfaceContainerHighest
-                : Colors.transparent,
-          ),
-          foregroundColor: WidgetStatePropertyAll(cs.onSurface),
-          side: const WidgetStatePropertyAll(BorderSide.none),
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (states) =>
+              states.contains(WidgetState.hovered)
+                  ? cs.surfaceContainerHighest
+                  : Colors.transparent,
         ),
+        foregroundColor: WidgetStatePropertyAll(cs.onSurface),
+        side: const WidgetStatePropertyAll(BorderSide.none),
+      ),
       ShadButtonVariant.link => base.copyWith(
-          backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
-          foregroundColor: WidgetStatePropertyAll(cs.primary),
-          textStyle: WidgetStatePropertyAll(
-            _textStyle.copyWith(decoration: TextDecoration.underline),
+        backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+        foregroundColor: WidgetStatePropertyAll(cs.primary),
+        textStyle: WidgetStatePropertyAll(
+          _textStyle.copyWith(decoration: TextDecoration.underline),
+        ),
+      ),
+    };
+  }
+}
+
+// ── Botón primario con degradado indigo → violet ──────────────────────────────
+
+class _PrimaryGradientButton extends StatelessWidget {
+  const _PrimaryGradientButton({
+    required this.child,
+    required this.height,
+    required this.padding,
+    required this.textStyle,
+    this.onPressed,
+  });
+
+  final Widget child;
+  final VoidCallback? onPressed;
+  final double height;
+  final EdgeInsets padding;
+  final TextStyle textStyle;
+
+  static const _gradient = LinearGradient(
+    colors: [AppColors.indigo500, AppColors.violet600],
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final isDisabled = onPressed == null;
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: AppRadius.button,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: AppRadius.button,
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: isDisabled ? null : _gradient,
+            color:
+                isDisabled
+                    ? Theme.of(context).colorScheme.surfaceContainerHighest
+                    : null,
+            borderRadius: AppRadius.button,
+          ),
+          child: SizedBox(
+            height: height,
+            child: Padding(
+              padding: padding,
+              child: Center(
+                child: DefaultTextStyle(
+                  style: textStyle.copyWith(
+                    color:
+                        isDisabled
+                            ? Theme.of(context).colorScheme.onSurfaceVariant
+                            : AppColors.white,
+                  ),
+                  child: IconTheme(
+                    data: IconThemeData(
+                      color:
+                          isDisabled
+                              ? Theme.of(context).colorScheme.onSurfaceVariant
+                              : AppColors.white,
+                    ),
+                    child: child,
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
-    };
+      ),
+    );
   }
 }

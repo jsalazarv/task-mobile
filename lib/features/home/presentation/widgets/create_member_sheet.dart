@@ -3,27 +3,38 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hometasks/core/services/member_service.dart';
+import 'package:hometasks/core/settings/app_settings_cubit.dart';
 import 'package:hometasks/core/theme/app_colors.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
 import 'package:hometasks/features/home/presentation/widgets/member_mock_data.dart';
 import 'package:image_picker/image_picker.dart';
 
-void showCreateMemberSheet(BuildContext context) {
-  _openMemberFormSheet(context);
+void showCreateMemberSheet(BuildContext context, {String? groupId}) {
+  final resolvedGroupId =
+      groupId ?? context.read<AppSettingsCubit>().state.activeGroupId ?? '';
+  _openMemberFormSheet(context, groupId: resolvedGroupId);
 }
 
 void showEditMemberSheet(BuildContext context, FamilyMember member) {
-  _openMemberFormSheet(context, existing: member);
+  _openMemberFormSheet(context, existing: member, groupId: member.groupId);
 }
 
-void _openMemberFormSheet(BuildContext context, {FamilyMember? existing}) {
+void _openMemberFormSheet(
+  BuildContext context, {
+  FamilyMember? existing,
+  required String groupId,
+}) {
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.transparent,
-    builder: (_) => _BlurOverlay(child: _CreateMemberSheet(existing: existing)),
+    builder:
+        (_) => _BlurOverlay(
+          child: _CreateMemberSheet(existing: existing, groupId: groupId),
+        ),
   );
 }
 
@@ -56,8 +67,9 @@ class _BlurOverlay extends StatelessWidget {
 }
 
 class _CreateMemberSheet extends StatefulWidget {
-  const _CreateMemberSheet({this.existing});
+  const _CreateMemberSheet({required this.groupId, this.existing});
 
+  final String groupId;
   final FamilyMember? existing;
 
   @override
@@ -110,9 +122,10 @@ class _CreateMemberSheetState extends State<_CreateMemberSheet> {
     setState(() => _saving = true);
 
     final name = _nameController.text.trim();
-    final nickname = _nicknameController.text.trim().isEmpty
-        ? null
-        : _nicknameController.text.trim();
+    final nickname =
+        _nicknameController.text.trim().isEmpty
+            ? null
+            : _nicknameController.text.trim();
 
     if (_isEditing) {
       final updated = widget.existing!.copyWith(
@@ -126,6 +139,7 @@ class _CreateMemberSheetState extends State<_CreateMemberSheet> {
       final member = FamilyMember(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         name: name,
+        groupId: widget.groupId,
         nickname: nickname,
         avatarColor: _selectedColor,
         avatarImagePath: _avatarImagePath,
@@ -243,17 +257,17 @@ class _SheetHeader extends StatelessWidget {
             children: [
               Text(
                 isEditing ? 'Editar miembro' : 'Nuevo miembro',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
               ),
               Text(
                 isEditing
                     ? 'Modifica los datos del miembro'
                     : 'Agrega un integrante a tu hogar',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -288,18 +302,18 @@ class _SectionLabel extends StatelessWidget {
         Text(
           label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.8,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.8,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
         ),
         if (suffix != null) ...[
           const SizedBox(width: AppSpacing.xs),
           Text(
             suffix!,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ],
@@ -333,9 +347,9 @@ class _Field extends StatelessWidget {
       ],
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: cs.onSurfaceVariant,
-            ),
+        hintStyle: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
         filled: true,
         fillColor: cs.surfaceContainerHighest,
         contentPadding: const EdgeInsets.symmetric(
@@ -383,24 +397,26 @@ class _AvatarPreview extends StatelessWidget {
             color: color.withOpacity(0.25),
             shape: BoxShape.circle,
             border: Border.all(color: color, width: 2.5),
-            image: imagePath != null
-                ? DecorationImage(
-                    image: FileImage(File(imagePath!)),
-                    fit: BoxFit.cover,
-                  )
-                : null,
+            image:
+                imagePath != null
+                    ? DecorationImage(
+                      image: FileImage(File(imagePath!)),
+                      fit: BoxFit.cover,
+                    )
+                    : null,
           ),
           alignment: Alignment.center,
-          child: imagePath == null
-              ? Text(
-                  name.isEmpty ? '?' : name[0].toUpperCase(),
-                  style: TextStyle(
-                    fontSize: size * 0.38,
-                    fontWeight: FontWeight.w800,
-                    color: color,
-                  ),
-                )
-              : null,
+          child:
+              imagePath == null
+                  ? Text(
+                    name.isEmpty ? '?' : name[0].toUpperCase(),
+                    style: TextStyle(
+                      fontSize: size * 0.38,
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                    ),
+                  )
+                  : null,
         ),
         Positioned(
           right: 0,
@@ -435,33 +451,42 @@ class _ColorPicker extends StatelessWidget {
     return Wrap(
       spacing: AppSpacing.md,
       runSpacing: AppSpacing.md,
-      children: kAvatarColors.map((color) {
-        final isSelected = color == selected;
-        return GestureDetector(
-          onTap: () => onSelected(color),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              border: isSelected
-                  ? Border.all(
-                      color: Theme.of(context).colorScheme.surface,
-                      width: 3,
-                    )
-                  : null,
-              boxShadow: isSelected
-                  ? [BoxShadow(color: color.withOpacity(0.6), blurRadius: 8)]
-                  : null,
-            ),
-            child: isSelected
-                ? const Icon(Icons.check, size: 18, color: Colors.white)
-                : null,
-          ),
-        );
-      }).toList(),
+      children:
+          kAvatarColors.map((color) {
+            final isSelected = color == selected;
+            return GestureDetector(
+              onTap: () => onSelected(color),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border:
+                      isSelected
+                          ? Border.all(
+                            color: Theme.of(context).colorScheme.surface,
+                            width: 3,
+                          )
+                          : null,
+                  boxShadow:
+                      isSelected
+                          ? [
+                            BoxShadow(
+                              color: color.withOpacity(0.6),
+                              blurRadius: 8,
+                            ),
+                          ]
+                          : null,
+                ),
+                child:
+                    isSelected
+                        ? const Icon(Icons.check, size: 18, color: Colors.white)
+                        : null,
+              ),
+            );
+          }).toList(),
     );
   }
 }
@@ -497,34 +522,36 @@ class _SaveButton extends StatelessWidget {
                 end: Alignment.centerRight,
               ),
               borderRadius: AppRadius.card,
-              boxShadow: enabled
-                  ? [
-                      BoxShadow(
-                        color: AppColors.indigo500.withOpacity(0.55),
-                        blurRadius: 18,
-                        offset: const Offset(0, 6),
-                      ),
-                    ]
-                  : null,
+              boxShadow:
+                  enabled
+                      ? [
+                        BoxShadow(
+                          color: AppColors.indigo500.withOpacity(0.55),
+                          blurRadius: 18,
+                          offset: const Offset(0, 6),
+                        ),
+                      ]
+                      : null,
             ),
             alignment: Alignment.center,
-            child: saving
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
+            child:
+                saving
+                    ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                    : Text(
+                      label,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: AppColors.white,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                      ),
                     ),
-                  )
-                : Text(
-                    label,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: AppColors.white,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.3,
-                        ),
-                  ),
           ),
         ),
       ),

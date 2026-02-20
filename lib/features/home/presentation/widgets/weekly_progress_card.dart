@@ -18,16 +18,17 @@ class WeeklyProgressCard extends StatelessWidget {
   final int total;
   final ViewMode viewMode;
 
-  double get _progress   => total == 0 ? 0 : completed / total;
-  int    get _percentage => (_progress * 100).round();
-  bool   get _isComplete => completed == total && total > 0;
-  int    get _xp         => completed * 10;
-  int    get _xpTotal    => total * 10;
+  double get _progress => total == 0 ? 0 : completed / total;
+  int get _percentage => (_progress * 100).round();
+  bool get _isComplete => completed == total && total > 0;
+  int get _xp => completed * 10;
+  int get _xpTotal => total * 10;
 
   @override
   Widget build(BuildContext context) {
-    final l10n  = AppLocalizations.of(context)!;
-    final title = viewMode == ViewMode.day ? l10n.progressDay : l10n.progressWeek;
+    final l10n = AppLocalizations.of(context)!;
+    final title =
+        viewMode == ViewMode.day ? l10n.progressDay : l10n.progressWeek;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
@@ -131,30 +132,35 @@ class _CardContent extends StatelessWidget {
               Text(
                 title,
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: AppColors.white.withOpacity(0.75),
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
-                    ),
+                  color: AppColors.white.withOpacity(0.75),
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
               ),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
                 child: Container(
                   key: ValueKey('$percentage'),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
-                    color: isComplete
-                        ? AppColors.xpGold
-                        : AppColors.white.withOpacity(0.18),
+                    color:
+                        isComplete
+                            ? AppColors.xpGold
+                            : AppColors.white.withOpacity(0.18),
                     borderRadius: BorderRadius.circular(AppRadius.full),
                   ),
                   child: Text(
                     '$percentage%',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: isComplete
+                      color:
+                          isComplete
                               ? AppColors.white
                               : AppColors.white.withOpacity(0.9),
-                          fontWeight: FontWeight.w800,
-                        ),
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ),
@@ -168,19 +174,19 @@ class _CardContent extends StatelessWidget {
               Text(
                 '$completed',
                 style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                      color: AppColors.white,
-                      fontWeight: FontWeight.w900,
-                      height: 1,
-                    ),
+                  color: AppColors.white,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.only(bottom: 6, left: 6),
                 child: Text(
                   '/ $total',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.white.withOpacity(0.6),
-                        fontWeight: FontWeight.w600,
-                      ),
+                    color: AppColors.white.withOpacity(0.6),
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -189,23 +195,26 @@ class _CardContent extends StatelessWidget {
           Text(
             l10n.tasksCompleted(completed, total),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.white.withOpacity(0.65),
-                ),
+              color: AppColors.white.withOpacity(0.65),
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
           // Barra de progreso + XP
           Row(
             children: [
-              Expanded(child: _XpBar(progress: progress)),
+              Expanded(
+                child: _XpBar(progress: progress, isComplete: isComplete),
+              ),
               const SizedBox(width: AppSpacing.md),
               Text(
                 '$xp / $xpTotal XP',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: isComplete
+                  color:
+                      isComplete
                           ? AppColors.xpGold
                           : AppColors.white.withOpacity(0.75),
-                      fontWeight: FontWeight.w700,
-                    ),
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),
@@ -218,9 +227,10 @@ class _CardContent extends StatelessWidget {
 // ── Barra XP ─────────────────────────────────────────────────────────────────
 
 class _XpBar extends StatelessWidget {
-  const _XpBar({required this.progress});
+  const _XpBar({required this.progress, required this.isComplete});
 
   final double progress;
+  final bool isComplete;
 
   @override
   Widget build(BuildContext context) {
@@ -232,15 +242,19 @@ class _XpBar extends StatelessWidget {
           tween: Tween(begin: 0, end: progress),
           duration: const Duration(milliseconds: 600),
           curve: Curves.easeOutCubic,
-          builder: (_, value, __) => Stack(
-            children: [
-              Container(color: AppColors.white.withOpacity(0.2)),
-              FractionallySizedBox(
-                widthFactor: value.clamp(0.0, 1.0),
-                child: Container(color: AppColors.white),
+          builder:
+              (_, value, __) => Stack(
+                children: [
+                  Container(color: AppColors.white.withOpacity(0.2)),
+                  FractionallySizedBox(
+                    widthFactor: value.clamp(0.0, 1.0),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 400),
+                      color: isComplete ? AppColors.xpGold : AppColors.white,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
         ),
       ),
     );
@@ -297,9 +311,10 @@ class _BlobPainterWidgetState extends State<_BlobPainterWidget>
       end: widget.floatOffset,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
-    _scale = Tween<double>(begin: 0.92, end: 1.08).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scale = Tween<double>(
+      begin: 0.92,
+      end: 1.08,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -312,16 +327,17 @@ class _BlobPainterWidgetState extends State<_BlobPainterWidget>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _controller,
-      builder: (_, __) => Transform.translate(
-        offset: Offset(0, _float.value),
-        child: Transform.scale(
-          scale: _scale.value,
-          child: CustomPaint(
-            size: Size(widget.size, widget.size),
-            painter: _BlobPainter(opacity: widget.opacity),
+      builder:
+          (_, __) => Transform.translate(
+            offset: Offset(0, _float.value),
+            child: Transform.scale(
+              scale: _scale.value,
+              child: CustomPaint(
+                size: Size(widget.size, widget.size),
+                painter: _BlobPainter(opacity: widget.opacity),
+              ),
+            ),
           ),
-        ),
-      ),
     );
   }
 }
@@ -333,20 +349,22 @@ class _BlobPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppColors.white.withOpacity(opacity)
-      ..style = PaintingStyle.fill;
+    final paint =
+        Paint()
+          ..color = AppColors.white.withOpacity(opacity)
+          ..style = PaintingStyle.fill;
 
     final w = size.width;
     final h = size.height;
 
-    final path = Path()
-      ..moveTo(w * 0.5, h * 0.0)
-      ..cubicTo(w * 0.9, h * 0.0, w * 1.0, h * 0.3, w * 1.0, h * 0.55)
-      ..cubicTo(w * 1.0, h * 0.85, w * 0.75, h * 1.0, w * 0.45, h * 1.0)
-      ..cubicTo(w * 0.15, h * 1.0, w * 0.0, h * 0.8, w * 0.0, h * 0.55)
-      ..cubicTo(w * 0.0, h * 0.25, w * 0.15, h * 0.0, w * 0.5, h * 0.0)
-      ..close();
+    final path =
+        Path()
+          ..moveTo(w * 0.5, h * 0.0)
+          ..cubicTo(w * 0.9, h * 0.0, w * 1.0, h * 0.3, w * 1.0, h * 0.55)
+          ..cubicTo(w * 1.0, h * 0.85, w * 0.75, h * 1.0, w * 0.45, h * 1.0)
+          ..cubicTo(w * 0.15, h * 1.0, w * 0.0, h * 0.8, w * 0.0, h * 0.55)
+          ..cubicTo(w * 0.0, h * 0.25, w * 0.15, h * 0.0, w * 0.5, h * 0.0)
+          ..close();
 
     canvas.drawPath(path, paint);
   }
@@ -387,19 +405,21 @@ class _ShimmerOverlayState extends State<_ShimmerOverlay>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _controller,
-      builder: (_, __) => ShaderMask(
-        shaderCallback: (bounds) => LinearGradient(
-          begin: Alignment(-1.5 + _controller.value * 4, 0),
-          end: Alignment(-0.5 + _controller.value * 4, 0),
-          colors: const [
-            Colors.transparent,
-            Colors.white24,
-            Colors.transparent,
-          ],
-        ).createShader(bounds),
-        blendMode: BlendMode.srcATop,
-        child: Container(color: Colors.white),
-      ),
+      builder:
+          (_, __) => ShaderMask(
+            shaderCallback:
+                (bounds) => LinearGradient(
+                  begin: Alignment(-1.5 + _controller.value * 4, 0),
+                  end: Alignment(-0.5 + _controller.value * 4, 0),
+                  colors: const [
+                    Colors.transparent,
+                    Colors.white24,
+                    Colors.transparent,
+                  ],
+                ).createShader(bounds),
+            blendMode: BlendMode.srcATop,
+            child: Container(color: Colors.white),
+          ),
     );
   }
 }
@@ -422,30 +442,29 @@ class XpProgressBar extends StatelessWidget {
           tween: Tween(begin: 0, end: progress),
           duration: const Duration(milliseconds: 500),
           curve: Curves.easeOutCubic,
-          builder: (_, value, __) => Stack(
-            children: [
-              Container(color: cs.surfaceContainerHighest),
-              FractionallySizedBox(
-                widthFactor: value.clamp(0.0, 1.0),
-                child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [AppColors.indigo600, AppColors.violet600],
+          builder:
+              (_, value, __) => Stack(
+                children: [
+                  Container(color: cs.surfaceContainerHighest),
+                  FractionallySizedBox(
+                    widthFactor: value.clamp(0.0, 1.0),
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [AppColors.indigo600, AppColors.violet600],
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  if (value > 0.05)
+                    FractionallySizedBox(
+                      widthFactor: value.clamp(0.0, 1.0),
+                      child: const _ShimmerOverlay(),
+                    ),
+                ],
               ),
-              if (value > 0.05)
-                FractionallySizedBox(
-                  widthFactor: value.clamp(0.0, 1.0),
-                  child: const _ShimmerOverlay(),
-                ),
-            ],
-          ),
         ),
       ),
     );
   }
 }
-
-

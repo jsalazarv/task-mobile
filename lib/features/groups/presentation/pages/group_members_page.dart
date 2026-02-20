@@ -1,48 +1,42 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:hometasks/core/models/family_member.dart';
+import 'package:hometasks/core/models/group.dart';
 import 'package:hometasks/core/services/member_service.dart';
-import 'package:hometasks/core/settings/app_settings_cubit.dart';
 import 'package:hometasks/core/theme/app_colors.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
 import 'package:hometasks/features/home/presentation/widgets/create_member_sheet.dart';
 
-import 'package:hometasks/features/home/presentation/widgets/member_mock_data.dart';
+/// Pantalla para gestionar los miembros de un grupo específico.
+class GroupMembersPage extends StatelessWidget {
+  const GroupMembersPage({required this.group, super.key});
 
-class MembersPage extends StatelessWidget {
-  const MembersPage({super.key});
+  final Group group;
 
   @override
   Widget build(BuildContext context) {
-    final activeGroupId =
-        context.watch<AppSettingsCubit>().state.activeGroupId ?? '';
-
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            _MembersHeader(
+            _Header(
+              group: group,
               onBack: () => Navigator.of(context).pop(),
-              onAdd:
-                  () => showCreateMemberSheet(context, groupId: activeGroupId),
+              onAdd: () => showCreateMemberSheet(context, groupId: group.id),
             ),
             Expanded(
               child: ValueListenableBuilder<List<FamilyMember>>(
                 valueListenable: MemberService.instance.membersNotifier,
                 builder: (context, allMembers, _) {
                   final members =
-                      allMembers
-                          .where((m) => m.groupId == activeGroupId)
-                          .toList();
+                      allMembers.where((m) => m.groupId == group.id).toList();
 
                   if (members.isEmpty) {
                     return _EmptyState(
                       onAdd:
-                          () => showCreateMemberSheet(
-                            context,
-                            groupId: activeGroupId,
-                          ),
+                          () =>
+                              showCreateMemberSheet(context, groupId: group.id),
                     );
                   }
 
@@ -96,7 +90,7 @@ class MembersPage extends StatelessWidget {
           ),
     );
 
-    if (confirmed == true) {
+    if (confirmed == true && context.mounted) {
       await MemberService.instance.remove(member.id);
     }
   }
@@ -104,9 +98,14 @@ class MembersPage extends StatelessWidget {
 
 // ── Widgets internos ──────────────────────────────────────────────────────────
 
-class _MembersHeader extends StatelessWidget {
-  const _MembersHeader({required this.onBack, required this.onAdd});
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.group,
+    required this.onBack,
+    required this.onAdd,
+  });
 
+  final Group group;
   final VoidCallback onBack;
   final VoidCallback onAdd;
 
@@ -123,11 +122,22 @@ class _MembersHeader extends StatelessWidget {
         children: [
           IconButton(icon: const Icon(Icons.arrow_back), onPressed: onBack),
           Expanded(
-            child: Text(
-              'Miembros del grupo',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Miembros',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  group.name,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
           ),
           _AddButton(onTap: onAdd),
@@ -160,7 +170,11 @@ class _AddButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.add, size: 16, color: Colors.white),
+            const Icon(
+              Icons.person_add_outlined,
+              size: 16,
+              color: Colors.white,
+            ),
             const SizedBox(width: 4),
             Text(
               'Agregar',
@@ -199,7 +213,7 @@ class _MemberCard extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: AppSpacing.lg),
         decoration: BoxDecoration(
-          color: AppColors.destructive.withOpacity(0.15),
+          color: AppColors.destructive.withValues(alpha: 0.15),
           borderRadius: AppRadius.card,
         ),
         child: const Icon(Icons.delete_outline, color: AppColors.destructive),
@@ -227,7 +241,7 @@ class _MemberCard extends StatelessWidget {
                     ? null
                     : [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
+                        color: Colors.black.withValues(alpha: 0.04),
                         blurRadius: 6,
                         offset: const Offset(0, 1),
                       ),
@@ -280,7 +294,7 @@ class _Avatar extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: member.avatarColor.withOpacity(0.25),
+        color: member.avatarColor.withValues(alpha: 0.25),
         shape: BoxShape.circle,
         border: Border.all(color: member.avatarColor, width: 2),
         image:
@@ -319,7 +333,7 @@ class _LevelBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.xpGoldLight,
         borderRadius: BorderRadius.circular(AppRadius.full),
-        border: Border.all(color: AppColors.xpGold.withOpacity(0.4)),
+        border: Border.all(color: AppColors.xpGold.withValues(alpha: 0.4)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -357,19 +371,18 @@ class _EmptyState extends StatelessWidget {
             Icon(
               Icons.group_add_outlined,
               size: 64,
-              color: cs.onSurfaceVariant.withOpacity(0.4),
+              color: cs.onSurfaceVariant.withValues(alpha: 0.4),
             ),
             const SizedBox(height: AppSpacing.lg),
             Text(
               'Sin miembros',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: cs.onSurface,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Agrega a las personas que participan en las tareas del hogar.',
+              'Agrega personas que participarán en las tareas de este grupo.',
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),

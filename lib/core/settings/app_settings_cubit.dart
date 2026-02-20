@@ -10,13 +10,27 @@ class AppSettingsState {
     this.soundEnabled = true,
     this.homeName = '',
     this.onboardingComplete = false,
+    this.activeGroupId,
+    this.loaded = false,
   });
 
   final ThemeMode themeMode;
   final Locale locale;
   final bool soundEnabled;
+
+  /// Nombre del hogar (mantenido por compatibilidad; el nombre canónico
+  /// vive en [Group.name] a partir de la introducción de grupos).
   final String homeName;
+
   final bool onboardingComplete;
+
+  /// ID del [Group] actualmente seleccionado. Null hasta que el usuario
+  /// complete el onboarding o tenga al menos un grupo.
+  final String? activeGroupId;
+
+  /// Indica que las preferencias ya fueron cargadas desde disco.
+  /// Mientras sea false, el router espera antes de redirigir.
+  final bool loaded;
 
   /// Color primario fijo según el tema activo: indigo400 en oscuro, indigo600 en claro.
   Color get effectivePrimaryColor =>
@@ -28,6 +42,9 @@ class AppSettingsState {
     bool? soundEnabled,
     String? homeName,
     bool? onboardingComplete,
+    String? activeGroupId,
+    bool clearActiveGroupId = false,
+    bool? loaded,
   }) {
     return AppSettingsState(
       themeMode: themeMode ?? this.themeMode,
@@ -35,6 +52,9 @@ class AppSettingsState {
       soundEnabled: soundEnabled ?? this.soundEnabled,
       homeName: homeName ?? this.homeName,
       onboardingComplete: onboardingComplete ?? this.onboardingComplete,
+      activeGroupId:
+          clearActiveGroupId ? null : (activeGroupId ?? this.activeGroupId),
+      loaded: loaded ?? this.loaded,
     );
   }
 }
@@ -47,6 +67,7 @@ class AppSettingsCubit extends Cubit<AppSettingsState> {
   static const _keySound = 'settings_sound';
   static const _keyHomeName = 'settings_home_name';
   static const _keyOnboarding = 'settings_onboarding_complete';
+  static const _keyActiveGroup = 'settings_active_group_id';
 
   /// Carga preferencias persistidas desde SharedPreferences.
   Future<void> load() async {
@@ -57,14 +78,19 @@ class AppSettingsCubit extends Cubit<AppSettingsState> {
     final soundEnabled = prefs.getBool(_keySound) ?? true;
     final homeName = prefs.getString(_keyHomeName) ?? '';
     final onboardingComplete = prefs.getBool(_keyOnboarding) ?? false;
+    final activeGroupId = prefs.getString(_keyActiveGroup);
 
-    emit(AppSettingsState(
-      themeMode: ThemeMode.values[themeIndex],
-      locale: Locale(localeCode),
-      soundEnabled: soundEnabled,
-      homeName: homeName,
-      onboardingComplete: onboardingComplete,
-    ));
+    emit(
+      AppSettingsState(
+        themeMode: ThemeMode.values[themeIndex],
+        locale: Locale(localeCode),
+        soundEnabled: soundEnabled,
+        homeName: homeName,
+        onboardingComplete: onboardingComplete,
+        activeGroupId: activeGroupId,
+        loaded: true,
+      ),
+    );
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
@@ -91,10 +117,43 @@ class AppSettingsCubit extends Cubit<AppSettingsState> {
     await prefs.setString(_keyHomeName, name);
   }
 
-  Future<void> completeOnboarding(String homeName) async {
-    emit(state.copyWith(homeName: homeName, onboardingComplete: true));
+  /// Establece el grupo activo y lo persiste.
+  Future<void> setActiveGroup(String groupId) async {
+    emit(state.copyWith(activeGroupId: groupId));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyActiveGroup, groupId);
+  }
+
+  /// Limpia todo el estado de settings y SharedPreferences al hacer logout.
+  /// Preserva únicamente tema, idioma y sonido (preferencias de dispositivo).
+  Future<void> resetForLogout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyHomeName);
+    await prefs.remove(_keyOnboarding);
+    await prefs.remove(_keyActiveGroup);
+    emit(
+      state.copyWith(
+        homeName: '',
+        onboardingComplete: false,
+        clearActiveGroupId: true,
+      ),
+    );
+  }
+
+  /// Completa el onboarding guardando el nombre del hogar y el grupo activo.
+  Future<void> completeOnboarding(String homeName, {String? groupId}) async {
+    emit(
+      state.copyWith(
+        homeName: homeName,
+        onboardingComplete: true,
+        activeGroupId: groupId,
+      ),
+    );
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyHomeName, homeName);
     await prefs.setBool(_keyOnboarding, true);
+    if (groupId != null) {
+      await prefs.setString(_keyActiveGroup, groupId);
+    }
   }
 }

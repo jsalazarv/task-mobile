@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:hometasks/l10n/generated/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:hometasks/core/config/env/dev_env.dart';
 import 'package:hometasks/core/config/env/env_config.dart';
 import 'package:hometasks/core/di/injection.dart';
 import 'package:hometasks/core/routes/app_router.dart';
+import 'package:hometasks/core/services/group_service.dart';
 import 'package:hometasks/core/services/member_service.dart';
 import 'package:hometasks/core/services/task_service.dart';
 import 'package:hometasks/core/settings/app_settings_cubit.dart';
@@ -13,52 +13,99 @@ import 'package:hometasks/core/storage/hive_service.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
 import 'package:hometasks/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:hometasks/features/auth/presentation/bloc/auth_event.dart';
+import 'package:hometasks/l10n/generated/app_localizations.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   EnvConfig.initialize(DevEnv());
-
   await configureDependencies();
 
   final hiveService = getIt<HiveService>();
   await hiveService.init();
 
-  await MemberService.instance.load();
-  await TaskService.instance.load();
+  await Future.wait([
+    GroupService.instance.load(),
+    MemberService.instance.load(),
+    TaskService.instance.load(),
+  ]);
 
-  // Permite a MemberService consultar tareas para calcular rachas
-  // sin crear una dependencia circular en tiempo de compilación.
   MemberService.instance.tasksProvider = () => TaskService.instance.tasks;
 
-  final authBloc = getIt<AuthBloc>()
-    ..add(const AuthCheckSessionRequested());
+  // Cargar settings antes de runApp para evitar race conditions en el router.
+  final settingsCubit = AppSettingsCubit();
+  await settingsCubit.load();
+  await _migrateLegacyDataIfNeeded(settingsCubit);
 
-  runApp(HomeTasks(authBloc: authBloc));
+  final authBloc = getIt<AuthBloc>()..add(const AuthCheckSessionRequested());
+
+  runApp(HomeTasks(authBloc: authBloc, settingsCubit: settingsCubit));
+}
+
+/// Migra datos anteriores al sistema de grupos asignando un grupo legacy
+/// a todos los miembros y tareas que tengan [groupId] vacío.
+Future<void> _migrateLegacyDataIfNeeded(AppSettingsCubit cubit) async {
+  final settings = cubit.state;
+
+  final hasMembersWithoutGroup = MemberService.instance.members.any(
+    (m) => m.groupId.isEmpty,
+  );
+  final hasTasksWithoutGroup = TaskService.instance.tasks.any(
+    (t) => t.groupId.isEmpty,
+  );
+
+  if (!hasMembersWithoutGroup && !hasTasksWithoutGroup) {
+    if (settings.activeGroupId == null &&
+        GroupService.instance.groups.isNotEmpty) {
+      await cubit.setActiveGroup(GroupService.instance.groups.first.id);
+    }
+    return;
+  }
+
+  var legacyGroup = GroupService.instance.findById('legacy-home-group');
+  legacyGroup ??= await GroupService.instance.createLegacyGroup(
+    settings.homeName,
+  );
+
+  for (final member
+      in MemberService.instance.members
+          .where((m) => m.groupId.isEmpty)
+          .toList()) {
+    await MemberService.instance.update(
+      member.copyWith(groupId: legacyGroup.id),
+    );
+  }
+
+  for (final task
+      in TaskService.instance.tasks.where((t) => t.groupId.isEmpty).toList()) {
+    await TaskService.instance.update(task.copyWith(groupId: legacyGroup.id));
+  }
+
+  if (settings.activeGroupId == null) {
+    await cubit.setActiveGroup(legacyGroup.id);
+  }
 }
 
 class HomeTasks extends StatefulWidget {
-  const HomeTasks({required this.authBloc, super.key});
+  const HomeTasks({
+    required this.authBloc,
+    required this.settingsCubit,
+    super.key,
+  });
 
   final AuthBloc authBloc;
+  final AppSettingsCubit settingsCubit;
 
   @override
   State<HomeTasks> createState() => _HomeTasksState();
 }
 
 class _HomeTasksState extends State<HomeTasks> {
-  final _settingsCubit = AppSettingsCubit();
-  late final _router = buildAppRouter(widget.authBloc, _settingsCubit);
-
-  @override
-  void initState() {
-    super.initState();
-    _settingsCubit.load();
-  }
+  late final _router = buildAppRouter(widget.authBloc, widget.settingsCubit);
 
   @override
   void dispose() {
-    _settingsCubit.close();
+    widget.settingsCubit.close();
     super.dispose();
   }
 
@@ -67,16 +114,13 @@ class _HomeTasksState extends State<HomeTasks> {
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: widget.authBloc),
-        BlocProvider.value(value: _settingsCubit),
+        BlocProvider.value(value: widget.settingsCubit),
       ],
       child: BlocBuilder<AppSettingsCubit, AppSettingsState>(
         builder: (context, settings) {
           return MaterialApp.router(
             title: 'HomeTasks',
             debugShowCheckedModeBanner: false,
-
-            // Theme dinámico — se reconstruye cuando cambia el cubit.
-            // effectivePrimaryColor adapta el acento al tema si no hay color custom.
             theme: AppTheme.withPrimary(
               settings.effectivePrimaryColor,
               brightness: Brightness.light,
@@ -86,8 +130,6 @@ class _HomeTasksState extends State<HomeTasks> {
               brightness: Brightness.dark,
             ),
             themeMode: settings.themeMode,
-
-            // i18n dinámico
             locale: settings.locale,
             supportedLocales: AppLocalizations.supportedLocales,
             localizationsDelegates: const [
@@ -96,8 +138,6 @@ class _HomeTasksState extends State<HomeTasks> {
               GlobalWidgetsLocalizations.delegate,
               GlobalCupertinoLocalizations.delegate,
             ],
-
-            // Routing
             routerConfig: _router,
           );
         },

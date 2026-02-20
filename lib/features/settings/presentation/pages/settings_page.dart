@@ -4,8 +4,11 @@ import 'package:hometasks/l10n/generated/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hometasks/core/routes/app_routes.dart';
 import 'package:hometasks/core/settings/app_settings_cubit.dart';
+import 'package:hometasks/core/theme/app_colors.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
 import 'package:hometasks/core/utils/sound_service.dart';
+import 'package:hometasks/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:hometasks/features/auth/presentation/bloc/auth_event.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -29,15 +32,15 @@ class SettingsPage extends StatelessWidget {
                       vertical: AppSpacing.lg,
                     ),
                     children: [
-                      _SectionLabel(label: 'FAMILIA'),
+                      _SectionLabel(label: 'GRUPOS'),
                       const SizedBox(height: AppSpacing.sm),
                       _SettingsCard(
                         children: [
                           _LinkRow(
-                            icon: Icons.group_outlined,
-                            title: 'Miembros de la familia',
-                            subtitle: 'Gestiona quiénes participan en las tareas',
-                            onTap: () => context.push(AppRoutes.members),
+                            icon: Icons.workspaces_outlined,
+                            title: 'Mis grupos',
+                            subtitle: 'Crea y gestiona tus grupos',
+                            onTap: () => context.push(AppRoutes.groups),
                           ),
                         ],
                       ),
@@ -49,47 +52,51 @@ class SettingsPage extends StatelessWidget {
                       _SettingsCard(
                         children: [
                           _LanguageRow(
-                             selected: settings.locale.languageCode.toUpperCase(),
-                             selectedLabel: settings.locale.languageCode == 'es'
-                                 ? l10n.settingsLanguageEs
-                                 : l10n.settingsLanguageEn,
-                             onChanged: (lang) {
-                               SoundService.instance.playSwitch(
-                                 enabled: settings.soundEnabled,
-                               );
-                               cubit.setLocale(Locale(lang.toLowerCase()));
-                             },
-                           ),
+                            selected:
+                                settings.locale.languageCode.toUpperCase(),
+                            selectedLabel:
+                                settings.locale.languageCode == 'es'
+                                    ? l10n.settingsLanguageEs
+                                    : l10n.settingsLanguageEn,
+                            onChanged: (lang) {
+                              SoundService.instance.playSwitch(
+                                enabled: settings.soundEnabled,
+                              );
+                              cubit.setLocale(Locale(lang.toLowerCase()));
+                            },
+                          ),
                           _Divider(),
                           _ToggleRow(
-                             icon: Icons.light_mode_outlined,
-                             title: l10n.settingsTheme,
-                             subtitle: settings.themeMode == ThemeMode.dark
-                                 ? l10n.settingsThemeDark
-                                 : l10n.settingsThemeLight,
-                             value: settings.themeMode == ThemeMode.dark,
-                             onChanged: (isDark) {
-                               SoundService.instance.playSwitch(
-                                 enabled: settings.soundEnabled,
-                               );
-                               cubit.setThemeMode(
-                                 isDark ? ThemeMode.dark : ThemeMode.light,
-                               );
-                             },
-                           ),
-                           _Divider(),
-                           _ToggleRow(
-                             icon: Icons.volume_up_outlined,
-                             title: l10n.settingsSounds,
-                             subtitle: settings.soundEnabled
-                                 ? l10n.settingsSoundsOn
-                                 : l10n.settingsSoundsOff,
-                             value: settings.soundEnabled,
-                             onChanged: (enabled) {
-                               SoundService.instance.playSwitch(enabled: true);
-                               cubit.setSoundEnabled(enabled);
-                             },
-                           ),
+                            icon: Icons.light_mode_outlined,
+                            title: l10n.settingsTheme,
+                            subtitle:
+                                settings.themeMode == ThemeMode.dark
+                                    ? l10n.settingsThemeDark
+                                    : l10n.settingsThemeLight,
+                            value: settings.themeMode == ThemeMode.dark,
+                            onChanged: (isDark) {
+                              SoundService.instance.playSwitch(
+                                enabled: settings.soundEnabled,
+                              );
+                              cubit.setThemeMode(
+                                isDark ? ThemeMode.dark : ThemeMode.light,
+                              );
+                            },
+                          ),
+                          _Divider(),
+                          _ToggleRow(
+                            icon: Icons.volume_up_outlined,
+                            title: l10n.settingsSounds,
+                            subtitle:
+                                settings.soundEnabled
+                                    ? l10n.settingsSoundsOn
+                                    : l10n.settingsSoundsOff,
+                            value: settings.soundEnabled,
+                            onChanged: (enabled) {
+                              SoundService.instance.playSwitch(enabled: true);
+                              cubit.setSoundEnabled(enabled);
+                            },
+                          ),
                         ],
                       ),
 
@@ -144,12 +151,20 @@ class SettingsPage extends StatelessWidget {
 
                       const SizedBox(height: AppSpacing.x2l),
 
+                      // ── Cerrar sesión ────────────────────────────────────
+                      _SignOutButton(onTap: () => _confirmSignOut(context)),
+
+                      const SizedBox(height: AppSpacing.x2l),
+
                       Center(
                         child: Text(
                           l10n.settingsVersion,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              ),
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodySmall?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ),
                       const SizedBox(height: AppSpacing.lg),
@@ -183,15 +198,12 @@ class _SettingsHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: onBack,
-          ),
+          IconButton(icon: const Icon(Icons.arrow_back), onPressed: onBack),
           Text(
             AppLocalizations.of(context)!.settingsTitle,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
           ),
         ],
       ),
@@ -211,10 +223,10 @@ class _SectionLabel extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.8,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.8,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       ),
     );
   }
@@ -228,20 +240,21 @@ class _SettingsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Builder(
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: AppRadius.card,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 6,
-              offset: const Offset(0, 1),
+      builder:
+          (context) => Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: AppRadius.card,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 6,
+                  offset: const Offset(0, 1),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: children),
-      ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: children),
+          ),
     );
   }
 }
@@ -307,16 +320,15 @@ class _LanguageRow extends StatelessWidget {
               children: [
                 Text(
                   l10n.settingsLanguage,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(fontWeight: FontWeight.w500),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
                 ),
                 Text(
                   selectedLabel,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -334,11 +346,11 @@ class _LanguageToggle extends StatelessWidget {
   final String selected;
   final ValueChanged<String> onChanged;
 
-  static const double _height      = 34;
-  static const double _padding     = 2;
+  static const double _height = 34;
+  static const double _padding = 2;
   static const double _outerRadius = 10;
   static const double _innerRadius = 8;
-  static const double _tabWidth    = 44;
+  static const double _tabWidth = 44;
 
   @override
   Widget build(BuildContext context) {
@@ -353,38 +365,41 @@ class _LanguageToggle extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: ['ES', 'EN'].map((lang) {
-          final isSelected = lang == selected;
-          return GestureDetector(
-            onTap: () => onChanged(lang),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              width: _tabWidth,
-              decoration: BoxDecoration(
-                color: isSelected ? cs.surface : Colors.transparent,
-                borderRadius: BorderRadius.circular(_innerRadius),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Center(
-                child: Text(
-                  lang,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+        children:
+            ['ES', 'EN'].map((lang) {
+              final isSelected = lang == selected;
+              return GestureDetector(
+                onTap: () => onChanged(lang),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: _tabWidth,
+                  decoration: BoxDecoration(
+                    color: isSelected ? cs.surface : Colors.transparent,
+                    borderRadius: BorderRadius.circular(_innerRadius),
+                    boxShadow:
+                        isSelected
+                            ? [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.08),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ]
+                            : null,
+                  ),
+                  child: Center(
+                    child: Text(
+                      lang,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w400,
                         color: isSelected ? cs.onSurface : cs.onSurfaceVariant,
                       ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          );
-        }).toList(),
+              );
+            }).toList(),
       ),
     );
   }
@@ -422,16 +437,15 @@ class _ToggleRow extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(fontWeight: FontWeight.w500),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
                 ),
                 Text(
                   subtitle,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -479,17 +493,16 @@ class _LinkRow extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.w500),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                   if (subtitle != null)
                     Text(
                       subtitle!,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                 ],
               ),
@@ -500,6 +513,84 @@ class _LinkRow extends StatelessWidget {
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Cerrar sesión ─────────────────────────────────────────────────────────────
+
+void _confirmSignOut(BuildContext context) {
+  showDialog<void>(
+    context: context,
+    builder:
+        (dialogContext) => AlertDialog(
+          title: const Text('Cerrar sesión'),
+          content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                context.read<AuthBloc>().add(const AuthLogoutRequested());
+              },
+              child: Text(
+                'Cerrar sesión',
+                style: TextStyle(color: AppColors.destructive),
+              ),
+            ),
+          ],
+        ),
+  );
+}
+
+class _SignOutButton extends StatelessWidget {
+  const _SignOutButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  static const _gradient = LinearGradient(
+    colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: AppRadius.card,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.card,
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: _gradient,
+            borderRadius: AppRadius.card,
+          ),
+          child: const SizedBox(
+            width: double.infinity,
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.logout_outlined, color: AppColors.white, size: 18),
+                  SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'Cerrar sesión',
+                    style: TextStyle(
+                      color: AppColors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

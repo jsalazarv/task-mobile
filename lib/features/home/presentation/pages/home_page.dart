@@ -2,13 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hometasks/core/routes/app_routes.dart';
+import 'package:hometasks/core/services/group_service.dart';
+import 'package:hometasks/core/services/member_service.dart';
 import 'package:hometasks/core/services/task_service.dart';
+import 'package:hometasks/core/settings/app_settings_cubit.dart';
 import 'package:hometasks/core/theme/app_colors.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
 import 'package:hometasks/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:hometasks/features/auth/presentation/bloc/auth_state.dart';
 import 'package:hometasks/features/home/presentation/widgets/create_task_sheet.dart';
 import 'package:hometasks/features/home/presentation/widgets/home_bottom_nav.dart';
+import 'package:hometasks/features/home/presentation/pages/my_day_page.dart';
 import 'package:hometasks/features/home/presentation/pages/summary_page.dart';
 import 'package:hometasks/features/home/presentation/widgets/task_detail_sheet.dart';
 import 'package:hometasks/features/home/presentation/widgets/home_header.dart';
@@ -32,6 +36,7 @@ class _HomePageState extends State<HomePage> {
   ViewMode _viewMode = ViewMode.day;
   int _navIndex = 0;
   String? _filterMemberId;
+  String _lastGroupId = '';
 
   @override
   void initState() {
@@ -39,8 +44,24 @@ class _HomePageState extends State<HomePage> {
     final now = DateTime.now();
     _selectedDay = now;
     _weekStart = _mondayOf(now);
-    // Escucha cambios del servicio para reconstruir la UI.
     TaskService.instance.tasksNotifier.addListener(_onTasksChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Limpia el filtro de miembro cuando el usuario cambia de grupo para
+    // evitar que quede activo un ID que no pertenece al nuevo grupo.
+    final currentGroupId =
+        context.read<AppSettingsCubit>().state.activeGroupId ?? '';
+    if (currentGroupId != _lastGroupId) {
+      _lastGroupId = currentGroupId;
+      if (_filterMemberId != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _filterMemberId = null);
+        });
+      }
+    }
   }
 
   @override
@@ -55,17 +76,20 @@ class _HomePageState extends State<HomePage> {
       date.subtract(Duration(days: date.weekday - 1));
 
   void _previousWeek() => setState(() {
-        _weekStart = _weekStart.subtract(const Duration(days: 7));
-      });
+    _weekStart = _weekStart.subtract(const Duration(days: 7));
+  });
 
   void _nextWeek() => setState(() {
-        _weekStart = _weekStart.add(const Duration(days: 7));
-      });
+    _weekStart = _weekStart.add(const Duration(days: 7));
+  });
 
   List<Task> get _currentTasks {
-    final base = _viewMode == ViewMode.day
-        ? TaskService.instance.forDay(_selectedDay)
-        : TaskService.instance.forWeek(_weekStart);
+    final groupId = context.read<AppSettingsCubit>().state.activeGroupId ?? '';
+
+    final base =
+        _viewMode == ViewMode.day
+            ? TaskService.instance.forGroupAndDay(groupId, _selectedDay)
+            : TaskService.instance.forGroupAndWeek(groupId, _weekStart);
 
     final filter = _filterMemberId;
     if (filter == null) return base;
@@ -75,39 +99,53 @@ class _HomePageState extends State<HomePage> {
   Future<void> _confirmDeleteTask(BuildContext context, Task task) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Eliminar tarea'),
-        content: Text('¿Eliminar "${task.title}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
-              'Eliminar',
-              style: TextStyle(
-                color: Theme.of(ctx).colorScheme.error,
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Eliminar tarea'),
+            content: Text('¿Eliminar "${task.title}"?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancelar'),
               ),
-            ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: Text(
+                  'Eliminar',
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.error),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
     );
     if (confirmed == true) await TaskService.instance.remove(task.id);
   }
 
   @override
   Widget build(BuildContext context) {
+    // watch para que el widget se reconstruya cuando cambie el grupo activo.
+    final activeGroupId =
+        context.watch<AppSettingsCubit>().state.activeGroupId ?? '';
+
     return BlocConsumer<AuthBloc, AuthState>(
-      listener: (context, state) {
-        if (state is AuthUnauthenticated) context.go(AppRoutes.login);
+      listener: (context, state) async {
+        if (state is AuthUnauthenticated) {
+          // Limpia todos los datos locales antes de redirigir al login,
+          // para evitar que un segundo usuario vea datos del anterior.
+          await TaskService.instance.clearAll();
+          await MemberService.instance.clearAll();
+          await GroupService.instance.clearAll();
+          await context.read<AppSettingsCubit>().resetForLogout();
+          if (context.mounted) context.go(AppRoutes.login);
+        }
       },
       builder: (context, _) {
+        // Al cambiar de grupo se limpia el filtro de miembro para evitar
+        // que quede seleccionado un miembro que no pertenece al nuevo grupo.
         final tasks = _currentTasks;
 
         return _HomeScaffold(
+          activeGroupId: activeGroupId,
           selectedDay: _selectedDay,
           weekStart: _weekStart,
           viewMode: _viewMode,
@@ -140,6 +178,7 @@ class _HomePageState extends State<HomePage> {
 
 class _HomeScaffold extends StatelessWidget {
   const _HomeScaffold({
+    required this.activeGroupId,
     required this.selectedDay,
     required this.weekStart,
     required this.viewMode,
@@ -156,6 +195,9 @@ class _HomeScaffold extends StatelessWidget {
     required this.onNavTap,
   });
 
+  /// ID del grupo activo — usado como key del scroll para forzar rebuild
+  /// completo cuando el usuario cambia de grupo, evitando cache visual.
+  final String activeGroupId;
   final DateTime selectedDay;
   final DateTime weekStart;
   final ViewMode viewMode;
@@ -182,55 +224,63 @@ class _HomeScaffold extends StatelessWidget {
         onTap: onNavTap,
       ),
       body: SafeArea(
-        child: navIndex == 3
-            ? const SummaryPage()
-            : CustomScrollView(
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const HomeHeader(),
-                        const SizedBox(height: AppSpacing.lg),
-                        WeekCalendar(
-                          weekStart: weekStart,
-                          selectedDay: selectedDay,
-                          onDaySelected: onDaySelected,
-                          onPreviousWeek: onPreviousWeek,
-                          onNextWeek: onNextWeek,
-                        ),
-                        const SizedBox(height: AppSpacing.lg),
-                        ViewModeSelector(
-                          selected: viewMode,
-                          onChanged: onViewModeChanged,
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        MemberFilterRow(
-                          selectedMemberId: filterMemberId,
-                          onFilterChanged: onFilterChanged,
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        WeeklyProgressCard(
-                          completed: _completedCount,
-                          total: tasks.length,
-                          viewMode: viewMode,
-                        ),
-                        const SizedBox(height: AppSpacing.lg),
-                      ],
-                    ),
-                  ),
-                  if (tasks.isEmpty)
-                    SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: _EmptyTasksState(
-                        onAddTask: () =>
-                            showCreateTaskSheet(context, date: selectedDay),
+        child:
+            navIndex == 3
+                ? const SummaryPage()
+                : navIndex == 0
+                ? const MyDayPage()
+                : CustomScrollView(
+                  // La key fuerza un rebuild completo del scroll al cambiar
+                  // de grupo, descartando cualquier estado visual cacheado.
+                  key: ValueKey(activeGroupId),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const HomeHeader(),
+                          const SizedBox(height: AppSpacing.lg),
+                          WeekCalendar(
+                            weekStart: weekStart,
+                            selectedDay: selectedDay,
+                            onDaySelected: onDaySelected,
+                            onPreviousWeek: onPreviousWeek,
+                            onNextWeek: onNextWeek,
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                          ViewModeSelector(
+                            selected: viewMode,
+                            onChanged: onViewModeChanged,
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          MemberFilterRow(
+                            selectedMemberId: filterMemberId,
+                            onFilterChanged: onFilterChanged,
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          WeeklyProgressCard(
+                            completed: _completedCount,
+                            total: tasks.length,
+                            viewMode: viewMode,
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                        ],
                       ),
-                    )
-                  else ...[
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
+                    ),
+                    if (tasks.isEmpty)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: _EmptyTasksState(
+                          onAddTask:
+                              () => showCreateTaskSheet(
+                                context,
+                                date: selectedDay,
+                              ),
+                        ),
+                      )
+                    else ...[
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate((context, index) {
                           final task = tasks[index];
                           final pendingCount =
                               tasks.where((t) => !t.completed).length;
@@ -241,24 +291,23 @@ class _HomeScaffold extends StatelessWidget {
                             task: task,
                             onToggle: () => onToggleTask(task),
                             isLastTask: isLastTask,
-                            onTap: () => showTaskDetailSheet(
-                              context,
-                              task,
-                              () => onToggleTask(task),
-                              onDelete: () => onDeleteTask(task),
-                              isLastTask: isLastTask,
-                            ),
+                            onTap:
+                                () => showTaskDetailSheet(
+                                  context,
+                                  task,
+                                  () => onToggleTask(task),
+                                  onDelete: () => onDeleteTask(task),
+                                  isLastTask: isLastTask,
+                                ),
                           );
-                        },
-                        childCount: tasks.length,
+                        }, childCount: tasks.length),
                       ),
-                    ),
-                    const SliverToBoxAdapter(
-                      child: SizedBox(height: AppSpacing.x2l),
-                    ),
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: AppSpacing.x2l),
+                      ),
+                    ],
                   ],
-                ],
-              ),
+                ),
       ),
     );
   }
@@ -300,16 +349,16 @@ class _EmptyTasksState extends StatelessWidget {
           Text(
             'Sin tareas para este día',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: cs.onSurface,
-                ),
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
             '¡Es un buen momento para planificar!\nAgrega la primera tarea del día.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: cs.onSurfaceVariant,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: AppSpacing.x2l),
@@ -341,9 +390,9 @@ class _EmptyTasksState extends StatelessWidget {
                   Text(
                     'Agregar tarea',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),

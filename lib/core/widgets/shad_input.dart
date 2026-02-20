@@ -95,19 +95,22 @@ class _ShadInputState extends State<ShadInput> {
           maxLines: _obscure ? 1 : widget.maxLines,
           minLines: widget.minLines,
           maxLength: widget.maxLength,
-          style: AppTextStyles.body,
+          style: AppTextStyles.body.copyWith(
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
           decoration: InputDecoration(
             hintText: widget.hint,
             errorText: widget.errorText,
             helperText: widget.helperText,
             prefixIcon: widget.prefixIcon,
             counterText: '',
-            suffixIcon: widget.obscureText
-                ? _ToggleObscureButton(
-                    isObscured: _obscure,
-                    onToggle: () => setState(() => _obscure = !_obscure),
-                  )
-                : widget.suffixIcon,
+            suffixIcon:
+                widget.obscureText
+                    ? _ToggleObscureButton(
+                      isObscured: _obscure,
+                      onToggle: () => setState(() => _obscure = !_obscure),
+                    )
+                    : widget.suffixIcon,
           ),
         ),
       ],

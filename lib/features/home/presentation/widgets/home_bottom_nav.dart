@@ -13,19 +13,16 @@ class HomeBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs     = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.cardDark.withOpacity(0.92)
-            : cs.surface,
+        color: isDark ? AppColors.cardDark.withOpacity(0.92) : cs.surface,
         border: Border(
           top: BorderSide(
-            color: isDark
-                ? AppColors.cardDarkBorder
-                : cs.outline.withOpacity(0.5),
+            color:
+                isDark ? AppColors.cardDarkBorder : cs.outline.withOpacity(0.5),
             width: 1,
           ),
         ),
@@ -37,9 +34,9 @@ class HomeBottomNav extends StatelessWidget {
           child: Row(
             children: [
               _NavItem(
-                icon: Icons.home_outlined,
-                iconFilled: Icons.home_rounded,
-                label: 'Inicio',
+                icon: Icons.wb_sunny_outlined,
+                iconFilled: Icons.wb_sunny_rounded,
+                label: 'Mi día',
                 index: 0,
                 currentIndex: currentIndex,
                 onTap: onTap,
@@ -130,12 +127,12 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs     = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final activeColor   = isDark ? AppColors.indigo400 : cs.primary;
+    final activeColor = isDark ? AppColors.indigo400 : cs.primary;
     final inactiveColor = cs.onSurfaceVariant;
-    final color         = _isSelected ? activeColor : inactiveColor;
+    final color = _isSelected ? activeColor : inactiveColor;
 
     return Expanded(
       child: GestureDetector(
@@ -157,10 +154,9 @@ class _NavItem extends StatelessWidget {
             Text(
               label,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: color,
-                    fontWeight:
-                        _isSelected ? FontWeight.w700 : FontWeight.w400,
-                  ),
+                color: color,
+                fontWeight: _isSelected ? FontWeight.w700 : FontWeight.w400,
+              ),
             ),
           ],
         ),

@@ -2,7 +2,9 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:hometasks/l10n/generated/app_localizations.dart';
+import 'package:hometasks/core/models/task_category_model.dart';
 import 'package:hometasks/core/services/member_service.dart';
+import 'package:hometasks/core/services/task_service.dart';
 import 'package:hometasks/core/theme/app_colors.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
 import 'package:hometasks/features/home/presentation/widgets/create_task_sheet.dart';
@@ -25,14 +27,15 @@ void showTaskDetailSheet(
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.transparent,
-    builder: (_) => _BlurOverlay(
-      child: _TaskDetailSheet(
-        task: task,
-        onToggle: onToggle,
-        onDelete: onDelete,
-        isLastTask: isLastTask,
-      ),
-    ),
+    builder:
+        (_) => _BlurOverlay(
+          child: _TaskDetailSheet(
+            task: task,
+            onToggle: onToggle,
+            onDelete: onDelete,
+            isLastTask: isLastTask,
+          ),
+        ),
   );
 }
 
@@ -99,12 +102,13 @@ class _TaskDetailSheet extends StatelessWidget {
           children: [
             _DetailHeader(
               task: task,
-              onDelete: onDelete == null
-                  ? null
-                  : () {
-                      Navigator.of(context).pop();
-                      onDelete!();
-                    },
+              onDelete:
+                  onDelete == null
+                      ? null
+                      : () {
+                        Navigator.of(context).pop();
+                        onDelete!();
+                      },
             ),
             const SizedBox(height: AppSpacing.x2l),
             _TitleSection(task: task),
@@ -148,25 +152,25 @@ class _DetailHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _CategoryIcon(category: task.category),
+        _CategoryIcon(category: TaskService.instance.resolveCategory(task)),
         const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                task.category.labelUpper,
+                TaskService.instance.resolveCategory(task).labelUpper,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: task.category.foreground,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.8,
-                    ),
+                  color: TaskService.instance.resolveCategory(task).foreground,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                ),
               ),
               Text(
                 l10n.taskDetailToday,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: cs.onSurfaceVariant,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
               ),
             ],
           ),
@@ -221,7 +225,7 @@ class _DetailHeader extends StatelessWidget {
 class _CategoryIcon extends StatelessWidget {
   const _CategoryIcon({required this.category});
 
-  final TaskCategory category;
+  final TaskCategoryModel category;
 
   @override
   Widget build(BuildContext context) {
@@ -233,7 +237,7 @@ class _CategoryIcon extends StatelessWidget {
         borderRadius: AppRadius.card,
       ),
       alignment: Alignment.center,
-      child: Text(category.emoji, style: const TextStyle(fontSize: 22)),
+      child: Icon(category.icon, size: 22, color: category.foreground),
     );
   }
 }
@@ -279,12 +283,13 @@ class _TitleSection extends StatelessWidget {
         Text(
           task.title,
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                decoration: task.completed ? TextDecoration.lineThrough : null,
-                color: task.completed
+            fontWeight: FontWeight.w700,
+            decoration: task.completed ? TextDecoration.lineThrough : null,
+            color:
+                task.completed
                     ? Theme.of(context).colorScheme.onSurfaceVariant
                     : Theme.of(context).colorScheme.onSurface,
-              ),
+          ),
         ),
         if (task.description != null) ...[
           const SizedBox(height: AppSpacing.sm),
@@ -301,8 +306,8 @@ class _TitleSection extends StatelessWidget {
                 child: Text(
                   task.description!,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             ],
@@ -322,32 +327,28 @@ class _ChipRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final assigneeName = task.assigneeId == null
-        ? null
-        : MemberService.instance.members
-            .where((m) => m.id == task.assigneeId)
-            .map((m) => m.displayName)
-            .firstOrNull;
+    final assigneeName =
+        task.assigneeId == null
+            ? null
+            : MemberService.instance.members
+                .where((m) => m.id == task.assigneeId)
+                .map((m) => m.displayName)
+                .firstOrNull;
 
     return Wrap(
       spacing: AppSpacing.sm,
       runSpacing: AppSpacing.sm,
       children: [
         if (task.time != null)
-          _Chip(
-            icon: Icons.access_time_outlined,
-            label: task.time!,
-          ),
+          _Chip(icon: Icons.access_time_outlined, label: task.time!),
         _Chip(
           icon: Icons.label_outline,
-          label: task.category.label,
-          foregroundColor: task.category.foreground,
+          label: TaskService.instance.resolveCategory(task).name,
+          foregroundColor:
+              TaskService.instance.resolveCategory(task).foreground,
         ),
         if (assigneeName != null)
-          _Chip(
-            icon: Icons.person_outline,
-            label: assigneeName,
-          ),
+          _Chip(icon: Icons.person_outline, label: assigneeName),
         _Chip(
           icon: Icons.bolt_rounded,
           label: '${task.xpValue} XP',
@@ -359,11 +360,7 @@ class _ChipRow extends StatelessWidget {
 }
 
 class _Chip extends StatelessWidget {
-  const _Chip({
-    required this.icon,
-    required this.label,
-    this.foregroundColor,
-  });
+  const _Chip({required this.icon, required this.label, this.foregroundColor});
 
   final IconData icon;
   final String label;
@@ -391,9 +388,9 @@ class _Chip extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w500,
-                ),
+              color: color,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),
@@ -434,10 +431,7 @@ class _StatusCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: AppRadius.card,
-      ),
+      decoration: BoxDecoration(color: bg, borderRadius: AppRadius.card),
       child: Row(
         children: [
           _StatusCircle(
@@ -454,19 +448,20 @@ class _StatusCard extends StatelessWidget {
                     ? l10n.taskDetailStatusCompleted
                     : l10n.taskDetailStatusPending,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: task.completed ? _completedFg : cs.onSurface,
-                    ),
+                  fontWeight: FontWeight.w600,
+                  color: task.completed ? _completedFg : cs.onSurface,
+                ),
               ),
               Text(
                 task.completed
                     ? l10n.taskDetailStatusCompletedSubtitle
                     : l10n.taskDetailStatusPendingSubtitle,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: task.completed
+                  color:
+                      task.completed
                           ? _completedFg.withOpacity(0.75)
                           : cs.onSurfaceVariant,
-                    ),
+                ),
               ),
             ],
           ),
@@ -497,9 +492,10 @@ class _StatusCircle extends StatelessWidget {
         shape: BoxShape.circle,
         border: completed ? null : Border.all(color: borderColor, width: 1.5),
       ),
-      child: completed
-          ? const Icon(Icons.check, size: 16, color: Colors.white)
-          : null,
+      child:
+          completed
+              ? const Icon(Icons.check, size: 16, color: Colors.white)
+              : null,
     );
   }
 }
@@ -541,9 +537,9 @@ class _ToggleButton extends StatelessWidget {
           child: Text(
             l10n.taskDetailMarkPending,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: cs.onSurface,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: cs.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),
@@ -584,10 +580,10 @@ class _PrimaryButton extends StatelessWidget {
           child: Text(
             label,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: AppColors.white,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.3,
-                ),
+              color: AppColors.white,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+            ),
           ),
         ),
       ),

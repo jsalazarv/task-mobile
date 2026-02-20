@@ -25,17 +25,22 @@ class MemberFilterRow extends StatelessWidget {
   final ValueChanged<String?> onFilterChanged;
 
   void _select(BuildContext context, String? id) {
-    final soundEnabled =
-        context.read<AppSettingsCubit>().state.soundEnabled;
+    final soundEnabled = context.read<AppSettingsCubit>().state.soundEnabled;
     SoundService.instance.playSwitch(enabled: soundEnabled);
     onFilterChanged(id);
   }
 
   @override
   Widget build(BuildContext context) {
+    final activeGroupId =
+        context.watch<AppSettingsCubit>().state.activeGroupId ?? '';
+
     return ValueListenableBuilder<List<FamilyMember>>(
       valueListenable: MemberService.instance.membersNotifier,
-      builder: (context, members, _) {
+      builder: (context, allMembers, _) {
+        final members =
+            allMembers.where((m) => m.groupId == activeGroupId).toList();
+
         if (members.isEmpty) return const SizedBox.shrink();
 
         return SizedBox(
@@ -92,25 +97,25 @@ class _AllChip extends StatelessWidget {
           vertical: 6,
         ),
         decoration: BoxDecoration(
-          gradient: isSelected
-              ? const LinearGradient(
-                  colors: [AppColors.indigo500, AppColors.violet600],
-                )
-              : null,
+          gradient:
+              isSelected
+                  ? const LinearGradient(
+                    colors: [AppColors.indigo500, AppColors.violet600],
+                  )
+                  : null,
           color: isSelected ? null : cs.surface,
           borderRadius: BorderRadius.circular(AppRadius.full),
           border: Border.all(
-            color: isSelected
-                ? Colors.transparent
-                : _inactiveBorderColor(context),
+            color:
+                isSelected ? Colors.transparent : _inactiveBorderColor(context),
           ),
         ),
         child: Text(
           'Todos',
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: isSelected ? Colors.white : cs.onSurfaceVariant,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              ),
+            color: isSelected ? Colors.white : cs.onSurfaceVariant,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+          ),
         ),
       ),
     );
@@ -141,14 +146,11 @@ class _MemberChip extends StatelessWidget {
           vertical: 6,
         ),
         decoration: BoxDecoration(
-          color: isSelected
-              ? member.avatarColor.withOpacity(0.18)
-              : cs.surface,
+          color: isSelected ? member.avatarColor.withOpacity(0.18) : cs.surface,
           borderRadius: BorderRadius.circular(AppRadius.full),
           border: Border.all(
-            color: isSelected
-                ? member.avatarColor
-                : _inactiveBorderColor(context),
+            color:
+                isSelected ? member.avatarColor : _inactiveBorderColor(context),
             width: isSelected ? 1.5 : 1,
           ),
         ),
@@ -160,12 +162,9 @@ class _MemberChip extends StatelessWidget {
             Text(
               member.displayName,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: isSelected
-                        ? member.avatarColor
-                        : cs.onSurfaceVariant,
-                    fontWeight:
-                        isSelected ? FontWeight.w700 : FontWeight.w500,
-                  ),
+                color: isSelected ? member.avatarColor : cs.onSurfaceVariant,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              ),
             ),
           ],
         ),
@@ -191,24 +190,26 @@ class _MiniAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         color: member.avatarColor.withOpacity(isSelected ? 0.35 : 0.2),
         shape: BoxShape.circle,
-        image: imagePath != null
-            ? DecorationImage(
-                image: FileImage(File(imagePath)),
-                fit: BoxFit.cover,
-              )
-            : null,
+        image:
+            imagePath != null
+                ? DecorationImage(
+                  image: FileImage(File(imagePath)),
+                  fit: BoxFit.cover,
+                )
+                : null,
       ),
       alignment: Alignment.center,
-      child: imagePath == null
-          ? Text(
-              member.initial,
-              style: TextStyle(
-                fontSize: size * 0.5,
-                fontWeight: FontWeight.w800,
-                color: member.avatarColor,
-              ),
-            )
-          : null,
+      child:
+          imagePath == null
+              ? Text(
+                member.initial,
+                style: TextStyle(
+                  fontSize: size * 0.5,
+                  fontWeight: FontWeight.w800,
+                  color: member.avatarColor,
+                ),
+              )
+              : null,
     );
   }
 }

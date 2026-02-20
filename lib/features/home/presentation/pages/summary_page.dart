@@ -1,61 +1,482 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:hometasks/core/routes/app_routes.dart';
 import 'package:hometasks/l10n/generated/app_localizations.dart';
+import 'package:hometasks/core/models/task_category_model.dart';
+import 'package:hometasks/core/services/achievement_calculator.dart';
+import 'package:hometasks/core/services/group_service.dart';
 import 'package:hometasks/core/services/member_service.dart';
+import 'package:hometasks/core/services/task_service.dart';
+import 'package:hometasks/core/settings/app_settings_cubit.dart';
 import 'package:hometasks/core/theme/app_colors.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
 import 'package:hometasks/features/home/presentation/widgets/member_mock_data.dart';
+import 'package:hometasks/features/home/presentation/widgets/task_mock_data.dart';
+import 'package:go_router/go_router.dart';
+
+/// Entrada del ranking con rango calculado según convención olímpica.
+///
+/// Los miembros con el mismo [score] comparten el mismo [rank].
+/// El siguiente rango disponible salta en consecuencia (ej: 1°, 1°, 3°).
+typedef _RankedEntry = ({FamilyMember member, int rank, bool isTied});
 
 class SummaryPage extends StatelessWidget {
   const SummaryPage({super.key});
 
-  static List<FamilyMember> _ranked(List<FamilyMember> members) {
-    final sorted = List<FamilyMember>.of(members);
-    sorted.sort((a, b) => b.score.compareTo(a.score));
-    return sorted;
+  /// Ordena los miembros por score descendente y asigna rangos con empates.
+  ///
+  /// Convención olímpica: si dos miembros empatan en el puesto N, ambos
+  /// reciben rango N y el siguiente rango disponible es N+2.
+  static List<_RankedEntry> _assignRanks(List<FamilyMember> members) {
+    final sorted = List<FamilyMember>.of(members)
+      ..sort((a, b) => b.score.compareTo(a.score));
+
+    final result = <_RankedEntry>[];
+    var rank = 1;
+
+    for (var i = 0; i < sorted.length; i++) {
+      if (i > 0 && sorted[i].score == sorted[i - 1].score) {
+        // Empate: mismo rango que el anterior.
+        result.add((member: sorted[i], rank: result.last.rank, isTied: true));
+        // Marcar al anterior como empatado también.
+        final prev = result[result.length - 2];
+        result[result.length - 2] = (
+          member: prev.member,
+          rank: prev.rank,
+          isTied: true,
+        );
+      } else {
+        rank = i + 1;
+        result.add((member: sorted[i], rank: rank, isTied: false));
+      }
+    }
+
+    return result;
   }
 
   @override
   Widget build(BuildContext context) {
+    final activeGroupId =
+        context.watch<AppSettingsCubit>().state.activeGroupId ?? '';
+
     return ValueListenableBuilder<List<FamilyMember>>(
       valueListenable: MemberService.instance.membersNotifier,
-      builder: (context, members, _) => _SummaryContent(members: members),
+      builder: (context, allMembers, _) {
+        final members =
+            allMembers.where((m) => m.groupId == activeGroupId).toList();
+        return _SummaryContent(members: members, activeGroupId: activeGroupId);
+      },
     );
   }
 }
 
 class _SummaryContent extends StatelessWidget {
-  const _SummaryContent({required this.members});
+  const _SummaryContent({required this.members, required this.activeGroupId});
 
   final List<FamilyMember> members;
+  final String activeGroupId;
+
+  static DateTime _mondayOf(DateTime date) =>
+      date.subtract(Duration(days: date.weekday - 1));
 
   @override
   Widget build(BuildContext context) {
-    final ranked = SummaryPage._ranked(members);
+    if (members.isEmpty) return const _EmptyMembersState();
+
+    // Si nadie ha acumulado puntos todavía, mostrar estado vacío del podio.
+    final allZero = members.every((m) => m.score == 0);
+
+    // Datos para los logros: tareas de la semana actual del grupo.
+    final weekStart = _mondayOf(DateTime.now());
+    final weekTasks = TaskService.instance.forGroupAndWeek(
+      activeGroupId,
+      weekStart,
+    );
+    final groupCategories =
+        GroupService.instance.findById(activeGroupId)?.categories ??
+        DefaultCategories.all;
+
+    final achievements = AchievementCalculator.calculate(
+      members: members,
+      weekTasks: weekTasks,
+      groupCategories: groupCategories,
+    );
+
+    if (allZero) {
+      return _NoPodiumYetState(achievements: achievements);
+    }
+
+    final ranked = SummaryPage._assignRanks(members);
     final podium = ranked.take(3).toList();
-    final rest   = ranked.skip(3).toList();
+    final rest = ranked.skip(3).toList();
 
     return CustomScrollView(
       slivers: [
-        // Hero card unificada: header + podio con gradiente
-        SliverToBoxAdapter(
-          child: _HeroPodiumCard(podium: podium),
-        ),
-        // Ranking del 4° en adelante
+        SliverToBoxAdapter(child: _HeroPodiumCard(podium: podium)),
         if (rest.isNotEmpty) ...[
           const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.lg)),
           SliverList(
             delegate: SliverChildBuilderDelegate(
-              (context, index) => _RankRow(member: rest[index], rank: index + 4),
+              (context, index) => _RankRow(entry: rest[index]),
               childCount: rest.length,
             ),
           ),
         ],
         const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.x2l)),
-        const SliverToBoxAdapter(child: _AchievementsSection()),
+        SliverToBoxAdapter(
+          child: _AchievementsSection(achievements: achievements),
+        ),
         const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.x2l)),
       ],
+    );
+  }
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+
+class _EmptyMembersState extends StatelessWidget {
+  const _EmptyMembersState();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.x2l,
+              AppSpacing.lg,
+              0,
+            ),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppColors.indigo700, AppColors.violet600],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: const BorderRadius.all(
+                Radius.circular(AppRadius.x3l),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.indigo600.withOpacity(0.5),
+                  blurRadius: 32,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            clipBehavior: Clip.hardEdge,
+            child: Stack(
+              children: [
+                Positioned(
+                  right: -20,
+                  top: -20,
+                  child: _BlobWidget(
+                    size: 160,
+                    opacity: 0.12,
+                    durationMs: 3600,
+                  ),
+                ),
+                Positioned(
+                  left: -30,
+                  bottom: -30,
+                  child: _BlobWidget(
+                    size: 120,
+                    opacity: 0.08,
+                    durationMs: 2900,
+                    phaseOffset: 0.55,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.x2l,
+                    vertical: AppSpacing.x3l,
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: AppColors.white.withOpacity(0.15),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.white.withOpacity(0.25),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.emoji_events_outlined,
+                            size: 38,
+                            color: AppColors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.x2l),
+                      Text(
+                        'Sin miembros aún',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: AppColors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        'Agrega miembros a este grupo para ver el podio semanal y el ranking.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.white.withOpacity(0.75),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: AppSpacing.x2l),
+                      // CTA para navegar a gestión de grupos/miembros
+                      OutlinedButton.icon(
+                        onPressed: () => context.push(AppRoutes.groups),
+                        icon: const Icon(Icons.person_add_outlined),
+                        label: const Text('Agregar miembro'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.white,
+                          side: BorderSide(
+                            color: AppColors.white.withOpacity(0.6),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.x2l,
+                            vertical: AppSpacing.md,
+                          ),
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: AppRadius.button,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Placeholder del ranking
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.x2l,
+              AppSpacing.lg,
+              AppSpacing.sm,
+            ),
+            child: Text(
+              'Ranking',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: cs.onSurface,
+              ),
+            ),
+          ),
+        ),
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => _RankRowPlaceholder(rank: index + 1),
+            childCount: 3,
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.x2l)),
+        // En el empty state de miembros no hay logros que calcular.
+        const SliverToBoxAdapter(child: _AchievementsSection(achievements: [])),
+        const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.x2l)),
+      ],
+    );
+  }
+}
+
+// ── Estado vacío: hay miembros pero nadie tiene puntos aún ───────────────────
+
+class _NoPodiumYetState extends StatelessWidget {
+  const _NoPodiumYetState({required this.achievements});
+
+  final List<AchievementResult> achievements;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.x2l,
+              AppSpacing.lg,
+              0,
+            ),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppColors.indigo700, AppColors.violet600],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: const BorderRadius.all(
+                Radius.circular(AppRadius.x3l),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.indigo600.withOpacity(0.5),
+                  blurRadius: 32,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            clipBehavior: Clip.hardEdge,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.x2l,
+                vertical: AppSpacing.x3l,
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: AppColors.white.withOpacity(0.15),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.white.withOpacity(0.25),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.emoji_events_outlined,
+                        size: 38,
+                        color: AppColors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.x2l),
+                  Text(
+                    '¡El podio está vacío!',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'Completa tareas para ganar XP y aparecer en el podio semanal.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.white.withOpacity(0.75),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.x2l)),
+        SliverToBoxAdapter(
+          child: _AchievementsSection(achievements: achievements),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.x2l)),
+      ],
+    );
+  }
+}
+
+class _RankRowPlaceholder extends StatelessWidget {
+  const _RankRowPlaceholder({required this.rank});
+
+  final int rank;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.xs,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: AppRadius.cardXl,
+        border:
+            isDark
+                ? Border.all(color: AppColors.cardDarkBorder, width: 1)
+                : null,
+        boxShadow:
+            isDark
+                ? null
+                : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 6,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 28,
+            child: Text(
+              '$rank°',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: cs.onSurfaceVariant.withOpacity(0.35),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          // Avatar placeholder
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerHighest,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 12,
+                  width: 100,
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  height: 10,
+                  width: 60,
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -65,23 +486,34 @@ class _SummaryContent extends StatelessWidget {
 class _HeroPodiumCard extends StatelessWidget {
   const _HeroPodiumCard({required this.podium});
 
-  final List<FamilyMember> podium;
+  final List<_RankedEntry> podium;
 
-  static const _barHeights = {1: 110.0, 2: 80.0, 3: 62.0};
+  // Alturas de barra por posición visual (izq=2°, centro=1°, der=3°).
+  // Se usa la posición en el layout, no el rango real, para mantener
+  // proporciones aunque haya empates.
+  static const _barHeights = {0: 80.0, 1: 110.0, 2: 62.0};
 
   String _weekRange(BuildContext context) {
-    final l10n   = AppLocalizations.of(context)!;
-    final now    = DateTime.now();
+    final l10n = AppLocalizations.of(context)!;
+    final now = DateTime.now();
     final monday = now.subtract(Duration(days: now.weekday - 1));
     final sunday = monday.add(const Duration(days: 6));
     final months = [
-      l10n.monthJanuary,   l10n.monthFebruary, l10n.monthMarch,
-      l10n.monthApril,     l10n.monthMay,      l10n.monthJune,
-      l10n.monthJuly,      l10n.monthAugust,   l10n.monthSeptember,
-      l10n.monthOctober,   l10n.monthNovember, l10n.monthDecember,
+      l10n.monthJanuary,
+      l10n.monthFebruary,
+      l10n.monthMarch,
+      l10n.monthApril,
+      l10n.monthMay,
+      l10n.monthJune,
+      l10n.monthJuly,
+      l10n.monthAugust,
+      l10n.monthSeptember,
+      l10n.monthOctober,
+      l10n.monthNovember,
+      l10n.monthDecember,
     ];
     final start = '${monday.day} ${months[monday.month - 1]}';
-    final end   = '${sunday.day} ${months[sunday.month - 1]}';
+    final end = '${sunday.day} ${months[sunday.month - 1]}';
     return l10n.summaryWeekRange(start, end);
   }
 
@@ -92,37 +524,45 @@ class _HeroPodiumCard extends StatelessWidget {
     const heroRadius = BorderRadius.all(Radius.circular(AppRadius.x3l));
     const cardRadius = Radius.circular(AppRadius.x2l);
 
-    final order = <({FamilyMember member, int rank, BorderRadius barRadius})>[
-      if (podium.length > 1)
-        (
-          member: podium[1],
-          rank: 2,
-          barRadius: const BorderRadius.only(
-            topLeft: Radius.circular(AppRadius.x2l),
-            topRight: Radius.circular(AppRadius.x2l),
-            bottomLeft: cardRadius,
+    // Layout visual: [2°, 1°, 3°] con sus border radius correspondientes.
+    // Se usa posición visual (0=izq, 1=centro, 2=der), no el rango real.
+    final order =
+        <({_RankedEntry entry, int visualPos, BorderRadius barRadius})>[
+          if (podium.length > 1)
+            (
+              entry: podium[1],
+              visualPos: 0,
+              barRadius: const BorderRadius.only(
+                topLeft: Radius.circular(AppRadius.x2l),
+                topRight: Radius.circular(AppRadius.x2l),
+                bottomLeft: cardRadius,
+              ),
+            ),
+          (
+            entry: podium[0],
+            visualPos: 1,
+            barRadius: const BorderRadius.vertical(
+              top: Radius.circular(AppRadius.x2l),
+            ),
           ),
-        ),
-      (
-        member: podium[0],
-        rank: 1,
-        barRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.x2l)),
-      ),
-      if (podium.length > 2)
-        (
-          member: podium[2],
-          rank: 3,
-          barRadius: const BorderRadius.only(
-            topLeft: Radius.circular(AppRadius.x2l),
-            topRight: Radius.circular(AppRadius.x2l),
-            bottomRight: cardRadius,
-          ),
-        ),
-    ];
+          if (podium.length > 2)
+            (
+              entry: podium[2],
+              visualPos: 2,
+              barRadius: const BorderRadius.only(
+                topLeft: Radius.circular(AppRadius.x2l),
+                topRight: Radius.circular(AppRadius.x2l),
+                bottomRight: cardRadius,
+              ),
+            ),
+        ];
 
     return Container(
       margin: const EdgeInsets.fromLTRB(
-        AppSpacing.lg, AppSpacing.x2l, AppSpacing.lg, 0,
+        AppSpacing.lg,
+        AppSpacing.x2l,
+        AppSpacing.lg,
+        0,
       ),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -166,7 +606,10 @@ class _HeroPodiumCard extends StatelessWidget {
               // ── Header ──────────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.x2l, AppSpacing.x2l, AppSpacing.x2l, AppSpacing.lg,
+                  AppSpacing.x2l,
+                  AppSpacing.x2l,
+                  AppSpacing.x2l,
+                  AppSpacing.lg,
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -177,14 +620,13 @@ class _HeroPodiumCard extends StatelessWidget {
                         children: [
                           Text(
                             l10n.summaryTitle,
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w900,
-                                  color: AppColors.white,
-                                  letterSpacing: -0.5,
-                                ),
+                            style: Theme.of(
+                              context,
+                            ).textTheme.headlineMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.white,
+                              letterSpacing: -0.5,
+                            ),
                           ),
                           const SizedBox(height: 4),
                           Row(
@@ -197,9 +639,7 @@ class _HeroPodiumCard extends StatelessWidget {
                               const SizedBox(width: 4),
                               Text(
                                 _weekRange(context),
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
+                                style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(color: AppColors.indigo200),
                               ),
                             ],
@@ -207,7 +647,11 @@ class _HeroPodiumCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const Text('🏆', style: TextStyle(fontSize: 40)),
+                    const Icon(
+                      Icons.emoji_events,
+                      size: 40,
+                      color: AppColors.xpGold,
+                    ),
                   ],
                 ),
               ),
@@ -222,21 +666,25 @@ class _HeroPodiumCard extends StatelessWidget {
               // ── Podio ────────────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.sm, AppSpacing.x2l, AppSpacing.sm, AppSpacing.x2l,
+                  AppSpacing.sm,
+                  AppSpacing.x2l,
+                  AppSpacing.sm,
+                  AppSpacing.x2l,
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
-                  children: order.map((entry) {
-                    final barHeight = _barHeights[entry.rank] ?? 62.0;
-                    return Expanded(
-                      child: _PodiumColumn(
-                        member: entry.member,
-                        rank: entry.rank,
-                        barHeight: barHeight,
-                        barRadius: entry.barRadius,
-                      ),
-                    );
-                  }).toList(),
+                  children:
+                      order.map((item) {
+                        final barHeight = _barHeights[item.visualPos] ?? 62.0;
+                        return Expanded(
+                          child: _PodiumColumn(
+                            entry: item.entry,
+                            isCenter: item.visualPos == 1,
+                            barHeight: barHeight,
+                            barRadius: item.barRadius,
+                          ),
+                        );
+                      }).toList(),
                 ),
               ),
             ],
@@ -251,45 +699,49 @@ class _HeroPodiumCard extends StatelessWidget {
 
 class _PodiumColumn extends StatelessWidget {
   const _PodiumColumn({
-    required this.member,
-    required this.rank,
+    required this.entry,
+    required this.isCenter,
     required this.barHeight,
     required this.barRadius,
   });
 
-  final FamilyMember member;
-  final int rank;
+  final _RankedEntry entry;
+
+  /// Si está en la posición central (independiente del rango real).
+  final bool isCenter;
   final double barHeight;
   final BorderRadius barRadius;
 
   @override
   Widget build(BuildContext context) {
-    final isFirst = rank == 1;
+    final member = entry.member;
+    final rank = entry.rank;
+    final isTied = entry.isTied;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (isFirst)
-          const Text('👑', style: TextStyle(fontSize: 22))
+        if (isCenter)
+          const Icon(Icons.workspace_premium, size: 22, color: AppColors.xpGold)
         else
           const SizedBox(height: 26),
         const SizedBox(height: 4),
 
-        isFirst
+        isCenter
             ? _AnimatedRingAvatar(member: member, size: 56)
             : _MemberAvatar(
-                member: member,
-                size: 46,
-                rankGradient: podiumGradientForRank(rank),
-              ),
+              member: member,
+              size: 46,
+              rankGradient: podiumGradientForRank(rank),
+            ),
         const SizedBox(height: AppSpacing.sm),
 
         Text(
           member.name,
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: AppColors.white,
-              ),
+            fontWeight: FontWeight.w700,
+            color: AppColors.white,
+          ),
           textAlign: TextAlign.center,
           overflow: TextOverflow.ellipsis,
         ),
@@ -299,17 +751,17 @@ class _PodiumColumn extends StatelessWidget {
         Text(
           AppLocalizations.of(context)!.summaryPoints(member.score),
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: isFirst
-                    ? AppColors.xpGold
-                    : AppColors.white.withOpacity(0.75),
-                fontWeight: isFirst ? FontWeight.w800 : FontWeight.w500,
-              ),
+            color:
+                isCenter ? AppColors.xpGold : AppColors.white.withOpacity(0.75),
+            fontWeight: isCenter ? FontWeight.w800 : FontWeight.w500,
+          ),
         ),
         const SizedBox(height: AppSpacing.sm),
 
         _PodiumBar(
           height: barHeight,
           rank: rank,
+          isTied: isTied,
           borderRadius: barRadius,
         ),
       ],
@@ -323,38 +775,42 @@ class _PodiumBar extends StatelessWidget {
   const _PodiumBar({
     required this.height,
     required this.rank,
+    required this.isTied,
     required this.borderRadius,
   });
 
   final double height;
   final int rank;
+  final bool isTied;
   final BorderRadius borderRadius;
 
   @override
   Widget build(BuildContext context) {
-    final isFirst = rank == 1;
+    final isTopCenter = rank == 1 && !isTied;
+    final label = isTied ? '=$rank°' : '$rank°';
 
     return Container(
       height: height,
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
       decoration: BoxDecoration(
-        color: isFirst
-            ? AppColors.white.withOpacity(0.25)
-            : AppColors.white.withOpacity(0.12),
+        color:
+            isTopCenter
+                ? AppColors.white.withOpacity(0.25)
+                : AppColors.white.withOpacity(0.12),
         borderRadius: borderRadius,
         border: Border.all(
-          color: AppColors.white.withOpacity(isFirst ? 0.4 : 0.2),
+          color: AppColors.white.withOpacity(isTopCenter ? 0.4 : 0.2),
           width: 1,
         ),
       ),
       alignment: Alignment.topCenter,
       padding: const EdgeInsets.only(top: AppSpacing.sm),
       child: Text(
-        '$rank°',
+        label,
         style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: AppColors.white,
-              fontWeight: FontWeight.w900,
-            ),
+          color: AppColors.white,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }
@@ -363,16 +819,17 @@ class _PodiumBar extends StatelessWidget {
 // ── Fila de ranking (4° en adelante) ─────────────────────────────────────────
 
 class _RankRow extends StatelessWidget {
-  const _RankRow({required this.member, required this.rank});
+  const _RankRow({required this.entry});
 
-  final FamilyMember member;
-  final int rank;
+  final _RankedEntry entry;
 
   @override
   Widget build(BuildContext context) {
-    final cs   = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final member = entry.member;
+    final rankLabel = entry.isTied ? '=${entry.rank}°' : '${entry.rank}°';
 
     return Container(
       margin: const EdgeInsets.symmetric(
@@ -386,29 +843,31 @@ class _RankRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: cs.surface,
         borderRadius: AppRadius.cardXl,
-        border: isDark
-            ? Border.all(color: AppColors.cardDarkBorder, width: 1)
-            : null,
-        boxShadow: isDark
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 6,
-                  offset: const Offset(0, 1),
-                ),
-              ],
+        border:
+            isDark
+                ? Border.all(color: AppColors.cardDarkBorder, width: 1)
+                : null,
+        boxShadow:
+            isDark
+                ? null
+                : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 6,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
       ),
       child: Row(
         children: [
           SizedBox(
-            width: 28,
+            width: 32,
             child: Text(
-              '$rank°',
+              rankLabel,
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: cs.onSurfaceVariant,
-                  ),
+                fontWeight: FontWeight.w800,
+                color: cs.onSurfaceVariant,
+              ),
               textAlign: TextAlign.center,
             ),
           ),
@@ -422,9 +881,9 @@ class _RankRow extends StatelessWidget {
                 Text(
                   member.name,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: cs.onSurface,
-                      ),
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
                 ),
                 _LevelBadge(level: member.level, compact: false),
               ],
@@ -438,9 +897,9 @@ class _RankRow extends StatelessWidget {
           Text(
             l10n.summaryPoints(member.score),
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: AppColors.xpGold,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: AppColors.xpGold,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ],
       ),
@@ -474,13 +933,15 @@ class _AnimatedRingAvatarState extends State<_AnimatedRingAvatar>
       duration: const Duration(milliseconds: 900),
     )..repeat(reverse: true);
 
-    _scale = Tween<double>(begin: 1.0, end: 1.08).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scale = Tween<double>(
+      begin: 1.0,
+      end: 1.08,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
-    _glow = Tween<double>(begin: 6.0, end: 18.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _glow = Tween<double>(
+      begin: 6.0,
+      end: 18.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -493,26 +954,27 @@ class _AnimatedRingAvatarState extends State<_AnimatedRingAvatar>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _controller,
-      builder: (_, child) => Transform.scale(
-        scale: _scale.value,
-        child: Container(
-          width: widget.size + 6,
-          height: widget.size + 6,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: podiumGoldGradient,
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.xpGold.withOpacity(0.65),
-                blurRadius: _glow.value,
-                spreadRadius: _glow.value * 0.2,
+      builder:
+          (_, child) => Transform.scale(
+            scale: _scale.value,
+            child: Container(
+              width: widget.size + 6,
+              height: widget.size + 6,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: podiumGoldGradient,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.xpGold.withOpacity(0.65),
+                    blurRadius: _glow.value,
+                    spreadRadius: _glow.value * 0.2,
+                  ),
+                ],
               ),
-            ],
+              padding: const EdgeInsets.all(2.5),
+              child: child,
+            ),
           ),
-          padding: const EdgeInsets.all(2.5),
-          child: child,
-        ),
-      ),
       child: _MemberAvatar(
         member: widget.member,
         size: widget.size,
@@ -577,9 +1039,10 @@ class _MemberAvatar extends StatelessWidget {
 /// - Oro y plata tienen fondos claros → inicial oscura.
 /// - Bronce tiene fondo oscuro → inicial clara.
 Color _initialColorForGradient(LinearGradient gradient) {
-  if (gradient == podiumGoldGradient)   return AppColors.xpGoldDark;        // #78350F
-  if (gradient == podiumSilverGradient) return const Color(0xFF1E293B);     // slate-800
-  return AppColors.streakOrangeLight;                                        // #FFF7ED (bronce)
+  if (gradient == podiumGoldGradient) return AppColors.xpGoldDark; // #78350F
+  if (gradient == podiumSilverGradient)
+    return const Color(0xFF1E293B); // slate-800
+  return AppColors.streakOrangeLight; // #FFF7ED (bronce)
 }
 
 /// Avatar con borde e inicial renderizados con gradiente de podio.
@@ -606,10 +1069,7 @@ class _GradientAvatar extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        gradient: gradient,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(gradient: gradient, shape: BoxShape.circle),
       padding: const EdgeInsets.all(_borderWidth),
       child: Container(
         decoration: BoxDecoration(
@@ -641,10 +1101,7 @@ class _LevelBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 6 : 8,
-        vertical: 2,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 8, vertical: 2),
       decoration: BoxDecoration(
         color: AppColors.xpGoldLight,
         borderRadius: BorderRadius.circular(AppRadius.full),
@@ -658,10 +1115,10 @@ class _LevelBadge extends StatelessWidget {
           Text(
             'Nv.$level',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: AppColors.xpGold,
-                  fontWeight: FontWeight.w800,
-                  fontSize: compact ? 9 : 11,
-                ),
+              color: AppColors.xpGold,
+              fontWeight: FontWeight.w800,
+              fontSize: compact ? 9 : 11,
+            ),
           ),
         ],
       ),
@@ -691,9 +1148,9 @@ class _StreakBadge extends StatelessWidget {
           Text(
             '$days',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: AppColors.streakOrange,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: AppColors.streakOrange,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ],
       ),
@@ -745,9 +1202,10 @@ class _BlobWidgetState extends State<_BlobWidget>
       end: widget.floatOffset,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
-    _scale = Tween<double>(begin: 0.90, end: 1.10).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scale = Tween<double>(
+      begin: 0.90,
+      end: 1.10,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -760,16 +1218,17 @@ class _BlobWidgetState extends State<_BlobWidget>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _controller,
-      builder: (_, __) => Transform.translate(
-        offset: Offset(0, _float.value),
-        child: Transform.scale(
-          scale: _scale.value,
-          child: CustomPaint(
-            size: Size(widget.size, widget.size),
-            painter: _BlobPainter(opacity: widget.opacity),
+      builder:
+          (_, __) => Transform.translate(
+            offset: Offset(0, _float.value),
+            child: Transform.scale(
+              scale: _scale.value,
+              child: CustomPaint(
+                size: Size(widget.size, widget.size),
+                painter: _BlobPainter(opacity: widget.opacity),
+              ),
+            ),
           ),
-        ),
-      ),
     );
   }
 }
@@ -781,20 +1240,22 @@ class _BlobPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppColors.white.withOpacity(opacity)
-      ..style = PaintingStyle.fill;
+    final paint =
+        Paint()
+          ..color = AppColors.white.withOpacity(opacity)
+          ..style = PaintingStyle.fill;
 
     final w = size.width;
     final h = size.height;
 
-    final path = Path()
-      ..moveTo(w * 0.5, 0)
-      ..cubicTo(w * 0.9, 0, w, h * 0.3, w, h * 0.55)
-      ..cubicTo(w, h * 0.85, w * 0.75, h, w * 0.45, h)
-      ..cubicTo(w * 0.15, h, 0, h * 0.8, 0, h * 0.55)
-      ..cubicTo(0, h * 0.25, w * 0.15, 0, w * 0.5, 0)
-      ..close();
+    final path =
+        Path()
+          ..moveTo(w * 0.5, 0)
+          ..cubicTo(w * 0.9, 0, w, h * 0.3, w, h * 0.55)
+          ..cubicTo(w, h * 0.85, w * 0.75, h, w * 0.45, h)
+          ..cubicTo(w * 0.15, h, 0, h * 0.8, 0, h * 0.55)
+          ..cubicTo(0, h * 0.25, w * 0.15, 0, w * 0.5, 0)
+          ..close();
 
     canvas.drawPath(path, paint);
   }
@@ -806,18 +1267,15 @@ class _BlobPainter extends CustomPainter {
 // ── Sección de Logros ─────────────────────────────────────────────────────────
 
 class _AchievementsSection extends StatelessWidget {
-  const _AchievementsSection();
+  const _AchievementsSection({required this.achievements});
+
+  final List<AchievementResult> achievements;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    const badges = <_BadgeData>[
-      _BadgeData(icon: Icons.local_fire_department_rounded, title: 'Constante',  subtitle: '7 días seguidos',   unlocked: true),
-      _BadgeData(icon: Icons.bolt_rounded,                  title: 'Veloz',      subtitle: '5 tareas en un día', unlocked: true),
-      _BadgeData(icon: Icons.star_rounded,                  title: 'Perfecto',   subtitle: 'Semana 100%',        unlocked: false),
-      _BadgeData(icon: Icons.groups_rounded,                title: 'Equipo',     subtitle: 'Todos participaron', unlocked: true),
-    ];
+    if (achievements.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -827,20 +1285,22 @@ class _AchievementsSection extends StatelessWidget {
           child: Text(
             'Logros de la semana',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: cs.onSurface,
-                ),
+              fontWeight: FontWeight.w800,
+              color: cs.onSurface,
+            ),
           ),
         ),
         const SizedBox(height: AppSpacing.md),
         SizedBox(
-          height: 120,
+          // La altura aumenta para acomodar los avatares de los ganadores.
+          height: 148,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            itemCount: badges.length,
+            itemCount: achievements.length,
             separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
-            itemBuilder: (context, index) => _BadgeCard(data: badges[index]),
+            itemBuilder:
+                (context, index) => _BadgeCard(result: achievements[index]),
           ),
         ),
       ],
@@ -848,132 +1308,202 @@ class _AchievementsSection extends StatelessWidget {
   }
 }
 
-class _BadgeData {
-  const _BadgeData({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.unlocked,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final bool unlocked;
-}
+// ── Badge Card ────────────────────────────────────────────────────────────────
 
 class _BadgeCard extends StatelessWidget {
-  const _BadgeCard({required this.data});
+  const _BadgeCard({required this.result});
 
-  final _BadgeData data;
+  final AchievementResult result;
 
-  static const _gold1     = Color(0xFFFCD34D);
-  static const _gold2     = Color(0xFFF59E0B);
-  static const _gold3     = Color(0xFFD97706);
+  static const _gold1 = Color(0xFFFCD34D);
+  static const _gold2 = Color(0xFFF59E0B);
+  static const _gold3 = Color(0xFFD97706);
   static const _goldShine = Color(0xFFFFFBEB);
 
   @override
   Widget build(BuildContext context) {
-    final cs     = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final unlocked = result.unlocked;
 
     return Opacity(
-      opacity: data.unlocked ? 1.0 : 0.35,
+      opacity: unlocked ? 1.0 : 0.35,
       child: Container(
-        width: 96,
+        width: 104,
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
           vertical: AppSpacing.md,
         ),
         decoration: BoxDecoration(
-          gradient: data.unlocked
-              ? LinearGradient(
-                  colors: [
-                    _gold1.withOpacity(isDark ? 0.18 : 0.22),
-                    _gold3.withOpacity(isDark ? 0.10 : 0.14),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : null,
-          color: data.unlocked ? null : cs.surface,
+          gradient:
+              unlocked
+                  ? LinearGradient(
+                    colors: [
+                      _gold1.withOpacity(isDark ? 0.18 : 0.22),
+                      _gold3.withOpacity(isDark ? 0.10 : 0.14),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                  : null,
+          color: unlocked ? null : cs.surface,
           borderRadius: AppRadius.cardXl,
-          border: data.unlocked
-              ? Border.all(color: _gold2.withOpacity(0.5), width: 1.5)
-              : Border.all(color: AppColors.cardDarkBorder, width: 1),
-          boxShadow: data.unlocked
-              ? [
-                  BoxShadow(
-                    color: _gold2.withOpacity(0.25),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
+          border:
+              unlocked
+                  ? Border.all(color: _gold2.withOpacity(0.5), width: 1.5)
+                  : Border.all(color: AppColors.cardDarkBorder, width: 1),
+          boxShadow:
+              unlocked
+                  ? [
+                    BoxShadow(
+                      color: _gold2.withOpacity(0.25),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                  : null,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // ── Ícono ──────────────────────────────────────────────────────
             Container(
-              width: 48,
-              height: 48,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                gradient: data.unlocked
-                    ? const LinearGradient(
-                        colors: [_gold1, _gold2, _gold3],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : null,
-                color: data.unlocked ? null : cs.surfaceContainerHighest,
+                gradient:
+                    unlocked
+                        ? const LinearGradient(
+                          colors: [_gold1, _gold2, _gold3],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                        : null,
+                color: unlocked ? null : cs.surfaceContainerHighest,
                 shape: BoxShape.circle,
-                boxShadow: data.unlocked
-                    ? [
-                        BoxShadow(
-                          color: _gold2.withOpacity(0.5),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ]
-                    : null,
+                boxShadow:
+                    unlocked
+                        ? [
+                          BoxShadow(
+                            color: _gold2.withOpacity(0.5),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                        : null,
               ),
               alignment: Alignment.center,
-              child: data.unlocked
-                  ? ShaderMask(
-                      shaderCallback: (bounds) => const LinearGradient(
-                        colors: [_goldShine, _gold1],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ).createShader(bounds),
-                      blendMode: BlendMode.srcIn,
-                      child: Icon(data.icon, size: 24, color: Colors.white),
-                    )
-                  : Icon(data.icon, size: 24, color: cs.onSurfaceVariant),
+              child:
+                  unlocked
+                      ? ShaderMask(
+                        shaderCallback:
+                            (bounds) => const LinearGradient(
+                              colors: [_goldShine, _gold1],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            ).createShader(bounds),
+                        blendMode: BlendMode.srcIn,
+                        child: Icon(
+                          result.def.icon,
+                          size: 22,
+                          color: Colors.white,
+                        ),
+                      )
+                      : Icon(
+                        result.def.icon,
+                        size: 22,
+                        color: cs.onSurfaceVariant,
+                      ),
             ),
             const SizedBox(height: AppSpacing.xs),
+
+            // ── Título y subtítulo ─────────────────────────────────────────
             Text(
-              data.title,
+              result.def.title,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: data.unlocked ? _gold3 : cs.onSurface,
-                  ),
+                fontWeight: FontWeight.w800,
+                color: unlocked ? _gold3 : cs.onSurface,
+              ),
               textAlign: TextAlign.center,
             ),
             Text(
-              data.subtitle,
+              result.def.subtitle,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    fontSize: 9,
-                    color: data.unlocked
-                        ? _gold2.withOpacity(0.85)
-                        : cs.onSurfaceVariant,
-                  ),
+                fontSize: 9,
+                color:
+                    unlocked ? _gold2.withOpacity(0.85) : cs.onSurfaceVariant,
+              ),
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
+
+            // ── Avatares de los ganadores ─────────────────────────────────
+            if (unlocked) ...[
+              const SizedBox(height: AppSpacing.xs),
+              _EarnerAvatars(earners: result.earners),
+            ] else
+              const SizedBox(height: AppSpacing.lg + AppSpacing.xs),
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Fila de avatares de los miembros que lograron la insignia ─────────────────
+
+class _EarnerAvatars extends StatelessWidget {
+  const _EarnerAvatars({required this.earners});
+
+  final List<FamilyMember> earners;
+
+  static const _avatarSize = 20.0;
+  static const _maxVisible = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = earners.take(_maxVisible).toList();
+    final overflow = earners.length - _maxVisible;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        ...visible.map(
+          (m) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 1),
+            child: Container(
+              width: _avatarSize,
+              height: _avatarSize,
+              decoration: BoxDecoration(
+                color: m.avatarColor.withOpacity(0.25),
+                shape: BoxShape.circle,
+                border: Border.all(color: m.avatarColor, width: 1.5),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                m.initial,
+                style: TextStyle(
+                  fontSize: _avatarSize * 0.42,
+                  fontWeight: FontWeight.w800,
+                  color: m.avatarColor,
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (overflow > 0) ...[
+          const SizedBox(width: 2),
+          Text(
+            '+$overflow',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFFF59E0B),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

@@ -2,9 +2,13 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hometasks/l10n/generated/app_localizations.dart';
+import 'package:hometasks/core/models/task_category_model.dart';
+import 'package:hometasks/core/services/group_service.dart';
 import 'package:hometasks/core/services/member_service.dart';
 import 'package:hometasks/core/services/task_service.dart';
+import 'package:hometasks/core/settings/app_settings_cubit.dart';
 import 'package:hometasks/core/theme/app_colors.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
 import 'package:hometasks/features/home/presentation/widgets/assignee_picker_sheet.dart';
@@ -13,17 +17,24 @@ import 'package:hometasks/features/home/presentation/widgets/task_mock_data.dart
 
 /// Abre el sheet para crear una tarea nueva en [date].
 void showCreateTaskSheet(BuildContext context, {DateTime? date}) {
-  _openTaskFormSheet(context, date: date ?? DateTime.now());
+  final groupId = context.read<AppSettingsCubit>().state.activeGroupId ?? '';
+  _openTaskFormSheet(context, date: date ?? DateTime.now(), groupId: groupId);
 }
 
 /// Abre el sheet para editar [task] existente.
 void showEditTaskSheet(BuildContext context, Task task) {
-  _openTaskFormSheet(context, existing: task, date: task.date);
+  _openTaskFormSheet(
+    context,
+    existing: task,
+    date: task.date,
+    groupId: task.groupId,
+  );
 }
 
 void _openTaskFormSheet(
   BuildContext context, {
   required DateTime date,
+  required String groupId,
   Task? existing,
 }) {
   showModalBottomSheet<void>(
@@ -43,6 +54,7 @@ void _openTaskFormSheet(
             builder:
                 (_, scrollController) => _TaskFormSheet(
                   date: date,
+                  groupId: groupId,
                   existing: existing,
                   scrollController: scrollController,
                 ),
@@ -79,11 +91,13 @@ class _BlurOverlay extends StatelessWidget {
 class _TaskFormSheet extends StatefulWidget {
   const _TaskFormSheet({
     required this.date,
+    required this.groupId,
     required this.scrollController,
     this.existing,
   });
 
   final DateTime date;
+  final String groupId;
   final Task? existing;
   final ScrollController scrollController;
 
@@ -95,7 +109,7 @@ class _TaskFormSheetState extends State<_TaskFormSheet> {
   late final TextEditingController _titleCtrl;
   late final TextEditingController _descCtrl;
   late final TextEditingController _timeCtrl;
-  late TaskCategory? _category;
+  late TaskCategoryModel? _category;
   late FamilyMember? _assignee;
   late DateTime _date;
   late int _xpValue;
@@ -111,7 +125,7 @@ class _TaskFormSheetState extends State<_TaskFormSheet> {
     _titleCtrl = TextEditingController(text: t?.title ?? '');
     _descCtrl = TextEditingController(text: t?.description ?? '');
     _timeCtrl = TextEditingController(text: t?.time ?? '');
-    _category = t?.category;
+    _category = t != null ? TaskService.instance.resolveCategory(t) : null;
     _date = t?.date ?? widget.date;
     _xpValue = t?.xpValue ?? 10;
 
@@ -145,7 +159,7 @@ class _TaskFormSheetState extends State<_TaskFormSheet> {
         description:
             _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
         time: _timeCtrl.text.isEmpty ? null : _timeCtrl.text,
-        category: _category,
+        categoryId: _category!.id,
         date: _date,
         assigneeId: _assignee?.id,
         clearAssignee: _assignee == null,
@@ -159,8 +173,9 @@ class _TaskFormSheetState extends State<_TaskFormSheet> {
         description:
             _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
         time: _timeCtrl.text.isEmpty ? null : _timeCtrl.text,
-        category: _category!,
+        categoryId: _category!.id,
         date: _date,
+        groupId: widget.groupId,
         assigneeId: _assignee?.id,
         xpValue: _xpValue,
       );
@@ -234,6 +249,7 @@ class _TaskFormSheetState extends State<_TaskFormSheet> {
               _SectionLabel(label: l10n.categoryLabel),
               const SizedBox(height: AppSpacing.md),
               _CategoryGrid(
+                groupId: widget.groupId,
                 selected: _category,
                 onSelected: (cat) => setState(() => _category = cat),
               ),
@@ -282,6 +298,7 @@ class _TaskFormSheetState extends State<_TaskFormSheet> {
                           onTap: () async {
                             final picked = await showAssigneePickerSheet(
                               context,
+                              groupId: widget.groupId,
                             );
                             if (picked != null) {
                               setState(() => _assignee = picked);
@@ -743,13 +760,21 @@ InputDecoration _inputDecoration(BuildContext context, String hint) {
 }
 
 class _CategoryGrid extends StatelessWidget {
-  const _CategoryGrid({required this.selected, required this.onSelected});
+  const _CategoryGrid({
+    required this.groupId,
+    required this.selected,
+    required this.onSelected,
+  });
 
-  final TaskCategory? selected;
-  final ValueChanged<TaskCategory> onSelected;
+  final String groupId;
+  final TaskCategoryModel? selected;
+  final ValueChanged<TaskCategoryModel> onSelected;
 
   @override
   Widget build(BuildContext context) {
+    final group = GroupService.instance.findById(groupId);
+    final categories = group?.categories ?? DefaultCategories.all;
+
     return GridView.count(
       crossAxisCount: 3,
       crossAxisSpacing: AppSpacing.sm,
@@ -758,8 +783,8 @@ class _CategoryGrid extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       children:
-          TaskCategory.values.map((cat) {
-            final isSelected = cat == selected;
+          categories.map((cat) {
+            final isSelected = cat.id == selected?.id;
             return _CategoryCell(
               category: cat,
               isSelected: isSelected,
@@ -777,7 +802,7 @@ class _CategoryCell extends StatelessWidget {
     required this.onTap,
   });
 
-  final TaskCategory category;
+  final TaskCategoryModel category;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -800,15 +825,21 @@ class _CategoryCell extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(category.emoji, style: const TextStyle(fontSize: 26)),
+            Icon(
+              category.icon,
+              size: 26,
+              color: isSelected ? cs.primary : cs.onSurfaceVariant,
+            ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              category.label,
+              category.name,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: cs.onSurface,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
               ),
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

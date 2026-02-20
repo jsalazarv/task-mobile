@@ -7,14 +7,18 @@ import 'package:hometasks/core/theme/app_colors.dart';
 import 'package:hometasks/core/theme/app_theme.dart';
 import 'package:hometasks/features/home/presentation/widgets/member_mock_data.dart';
 
-/// Muestra el selector de responsable y retorna el [FamilyMember] elegido.
-Future<FamilyMember?> showAssigneePickerSheet(BuildContext context) {
+/// Muestra el selector de responsable filtrado por [groupId]
+/// y retorna el [FamilyMember] elegido.
+Future<FamilyMember?> showAssigneePickerSheet(
+  BuildContext context, {
+  required String groupId,
+}) {
   return showModalBottomSheet<FamilyMember>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.transparent,
-    builder: (_) => const _BlurOverlay(child: _AssigneePickerSheet()),
+    builder: (_) => _BlurOverlay(child: _AssigneePickerSheet(groupId: groupId)),
   );
 }
 
@@ -47,7 +51,9 @@ class _BlurOverlay extends StatelessWidget {
 }
 
 class _AssigneePickerSheet extends StatelessWidget {
-  const _AssigneePickerSheet();
+  const _AssigneePickerSheet({required this.groupId});
+
+  final String groupId;
 
   @override
   Widget build(BuildContext context) {
@@ -72,17 +78,20 @@ class _AssigneePickerSheet extends StatelessWidget {
             const SizedBox(height: AppSpacing.lg),
             ValueListenableBuilder<List<FamilyMember>>(
               valueListenable: MemberService.instance.membersNotifier,
-              builder: (context, members, _) {
+              builder: (context, allMembers, _) {
+                final members =
+                    allMembers.where((m) => m.groupId == groupId).toList();
+
                 if (members.isEmpty) {
                   return Padding(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: AppSpacing.x2l),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.x2l,
+                    ),
                     child: Text(
-                      'No hay miembros. Agrega uno desde Ajustes.',
+                      'No hay miembros en este grupo.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                   );
@@ -92,12 +101,13 @@ class _AssigneePickerSheet extends StatelessWidget {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: members.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(height: AppSpacing.sm),
-                  itemBuilder: (context, index) => _MemberTile(
-                    member: members[index],
-                    onTap: () => Navigator.of(context).pop(members[index]),
-                  ),
+                  separatorBuilder:
+                      (_, __) => const SizedBox(height: AppSpacing.sm),
+                  itemBuilder:
+                      (context, index) => _MemberTile(
+                        member: members[index],
+                        onTap: () => Navigator.of(context).pop(members[index]),
+                      ),
                 );
               },
             ),
@@ -120,9 +130,9 @@ class _SheetHeader extends StatelessWidget {
         Expanded(
           child: Text(
             'Seleccionar responsable',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
           ),
         ),
         GestureDetector(
@@ -164,12 +174,10 @@ class _MemberTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: cs.surface,
           borderRadius: AppRadius.card,
-          border: isDark
-              ? Border.all(color: AppColors.cardDarkBorder, width: 1)
-              : Border.all(
-                  color: cs.surfaceContainerHighest,
-                  width: 1,
-                ),
+          border:
+              isDark
+                  ? Border.all(color: AppColors.cardDarkBorder, width: 1)
+                  : Border.all(color: cs.surfaceContainerHighest, width: 1),
         ),
         child: Row(
           children: [
@@ -182,24 +190,20 @@ class _MemberTile extends StatelessWidget {
                   Text(
                     member.name,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   if (member.nickname != null)
                     Text(
                       member.nickname!,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: cs.onSurfaceVariant,
-                          ),
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right,
-              size: 20,
-              color: cs.onSurfaceVariant,
-            ),
+            Icon(Icons.chevron_right, size: 20, color: cs.onSurfaceVariant),
           ],
         ),
       ),
@@ -224,24 +228,26 @@ class _Avatar extends StatelessWidget {
         color: member.avatarColor.withOpacity(0.25),
         shape: BoxShape.circle,
         border: Border.all(color: member.avatarColor, width: 2),
-        image: imagePath != null
-            ? DecorationImage(
-                image: FileImage(File(imagePath)),
-                fit: BoxFit.cover,
-              )
-            : null,
+        image:
+            imagePath != null
+                ? DecorationImage(
+                  image: FileImage(File(imagePath)),
+                  fit: BoxFit.cover,
+                )
+                : null,
       ),
       alignment: Alignment.center,
-      child: imagePath == null
-          ? Text(
-              member.initial,
-              style: TextStyle(
-                fontSize: size * 0.38,
-                fontWeight: FontWeight.w800,
-                color: member.avatarColor,
-              ),
-            )
-          : null,
+      child:
+          imagePath == null
+              ? Text(
+                member.initial,
+                style: TextStyle(
+                  fontSize: size * 0.38,
+                  fontWeight: FontWeight.w800,
+                  color: member.avatarColor,
+                ),
+              )
+              : null,
     );
   }
 }
