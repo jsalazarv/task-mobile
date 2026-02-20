@@ -23,6 +23,13 @@ class TaskCategoryModel {
   /// Color de primer plano (texto e icono). El fondo se deriva con opacidad.
   final Color color;
 
+  /// Getter que crea IconData dinámicamente desde codePoints persistidos.
+  ///
+  /// NOTA TÉCNICA: Esta implementación impide tree-shaking de iconos porque
+  /// el codePoint se resuelve en runtime. Para builds de release, usar:
+  /// `flutter build [platform] --release --no-tree-shake-icons`
+  ///
+  /// Impacto: ~150-200KB adicionales por incluir todas las fuentes Material Icons.
   IconData get icon => IconData(iconCodePoint, fontFamily: 'MaterialIcons');
 
   Color get background => color.withValues(alpha: 0.12);
